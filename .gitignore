@@ -1,0 +1,7 @@
+node_modules/
+.env
+*.log
+.pid
+channels/discord/channel-map.json
+channels/discord/access.json
+channels/slack/config.json

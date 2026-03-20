@@ -1,0 +1,12 @@
+{
+  "name": "claude-agent-dashboard",
+  "version": "1.0.0",
+  "description": "Status dashboard for Claude Code remote agent workstation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

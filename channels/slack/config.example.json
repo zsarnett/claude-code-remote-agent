@@ -1,0 +1,49 @@
+{
+  "slack_user_id": "YOUR_SLACK_USER_ID",
+  "workspace": "your-workspace",
+  "discord_hub_channel_id": "YOUR_HUB_CHANNEL_ID",
+  "discord_notify_script": "~/.claude/bin/discord-notify.sh",
+
+  "urgent_keywords": [
+    "urgent",
+    "asap",
+    "critical",
+    "emergency",
+    "blocking",
+    "outage",
+    "down",
+    "incident",
+    "p0",
+    "p1"
+  ],
+
+  "channels_to_monitor": [
+    {
+      "name": "general",
+      "priority": "low",
+      "forward_all": false,
+      "notes": "Only forward messages that mention you or contain urgent keywords"
+    },
+    {
+      "name": "alerts",
+      "priority": "high",
+      "forward_all": true,
+      "notes": "Forward all messages -- this is an alerting channel"
+    }
+  ],
+
+  "always_forward": {
+    "direct_messages": true,
+    "mentions": true,
+    "reactions_to_user": false,
+    "threads_user_participated_in": true
+  },
+
+  "formatting": {
+    "prefix": "[Slack]",
+    "include_channel_name": true,
+    "include_sender": true,
+    "include_timestamp": true,
+    "max_message_length": 1500
+  }
+}

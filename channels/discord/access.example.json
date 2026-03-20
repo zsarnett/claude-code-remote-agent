@@ -1,0 +1,15 @@
+{
+  "dmPolicy": "allowlist",
+  "allowFrom": [
+    "YOUR_DISCORD_USER_ID"
+  ],
+  "groups": {
+    "YOUR_HUB_CHANNEL_ID": {
+      "requireMention": false,
+      "allowFrom": [
+        "YOUR_DISCORD_USER_ID"
+      ]
+    }
+  },
+  "pending": {}
+}

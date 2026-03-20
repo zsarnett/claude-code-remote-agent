@@ -1,0 +1,53 @@
+# Workspace CLAUDE.md -- Remote Agent Setup
+
+Add these instructions to your workspace's CLAUDE.md so the hub agent knows
+how to route Discord messages.
+
+---
+
+## Remote Agent Setup
+
+This machine is configured as a dedicated Claude Code workstation, controlled remotely via Discord.
+
+### Architecture
+
+- **Main session**: Runs in tmux (`claude-agent`) with Discord channel connected
+- **Discord bot**: DM-based control -- you send messages from phone/other computer, Claude Code receives and acts
+- **Parallel work**: Use subagents with worktrees for parallel tasks
+- **Working directory**: Main session runs from this workspace root
+
+### Shell Commands
+
+- `claude-agent` -- start the main persistent session
+- `claude-agent <name>` -- start a named session in a matching project folder
+- `claude-agent <name> /path/to/dir` -- start a named session in a specific directory
+- `claude-agents` -- list all running sessions
+- `claude-attach <name>` -- attach to a session
+- `claude-stop <name>` -- kill a session
+- `claude-stop --all` -- kill all sessions
+
+### When receiving Discord messages
+
+**CRITICAL ROUTING RULE: You are the HUB. You are an ORCHESTRATOR ONLY. You NEVER do project work yourself.**
+
+When a message arrives from a project channel (any channel in `channel-map.json` that is NOT the hub):
+1. Reply to Discord IMMEDIATELY: "Dispatching to #<project>..."
+2. Run: `bash ~/.claude/bin/dispatch-to-session.sh <project-name> <project-dir> <channel-id> "<message>"`
+3. STOP. Do nothing else. The project session handles everything.
+
+When a message arrives from `#hub` or DMs:
+- **FIRST**, reply to Discord IMMEDIATELY with a short acknowledgment
+- THEN handle the task
+- When done, reply to Discord with the result
+
+**Hub commands:**
+- **"spin up a channel for X"**: run `~/.claude/bin/discord-create-channel.sh <name> <path>`
+- **"clear context" for a project**: run `bash ~/.claude/bin/kill-project-session.sh <name> <channel-id>`
+- **"list sessions"**: run `bash ~/.claude/bin/list-project-sessions.sh`
+- **"restart"**: run `bash ~/.claude/bin/restart-agent.sh`
+
+### Context Management
+
+- **Compact**: When context gets above 80%, Claude Code auto-compacts.
+- **Clean restart**: "fresh start" or "reset" -- use `bash ~/.claude/bin/restart-agent.sh`
+- **Per-task isolation**: For large tasks, spawn subagents with their own context windows.

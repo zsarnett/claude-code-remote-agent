@@ -1,0 +1,11 @@
+{
+  "guildId": "YOUR_GUILD_ID",
+  "categoryId": "YOUR_CATEGORY_ID",
+  "channels": {
+    "YOUR_HUB_CHANNEL_ID": {
+      "name": "hub",
+      "dir": "/path/to/your/workspace"
+    }
+  },
+  "defaultDir": "/path/to/your/workspace"
+}
