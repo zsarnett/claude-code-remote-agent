@@ -471,7 +471,8 @@ function renderSessions(sessions) {
     var status = s.attached ? "Attached" : "Detached";
     var roleLabel = s.role === "hub" ? '<span style="color:#58a6ff;font-size:11px;margin-left:6px;">HUB</span>' : '<span style="color:#8b949e;font-size:11px;margin-left:6px;">PROJECT</span>';
     var channelLabel = s.discordChannel ? ' | Discord: ' + escapeHtml(s.discordChannel) : '';
-    var dirLabel = s.dir ? ' | Dir: ' + escapeHtml(s.dir.replace('/Users/zackbarett/Documents/', '~/')) : '';
+    var homeDir = process.env.HOME || os.homedir();
+    var dirLabel = s.dir ? ' | Dir: ' + escapeHtml(s.dir.replace(homeDir + '/Documents/', '~/').replace(homeDir, '~')) : '';
     return '<div class="session-item">' +
       '<div class="name"><span class="status-dot ' + dotClass + '"></span>' + escapeHtml(s.name) + roleLabel + '</div>' +
       '<div class="detail">' + status + ' | Uptime: ' + escapeHtml(s.uptime) + channelLabel + dirLabel + '</div>' +
