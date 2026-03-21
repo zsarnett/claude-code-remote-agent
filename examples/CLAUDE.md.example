@@ -40,6 +40,27 @@ When a message arrives from `#hub` or DMs:
 - THEN handle the task
 - When done, reply to Discord with the result
 
+**Intent Detection -- Architect & Researcher Agents:**
+
+When a message arrives in `#hub` or DMs, detect if it matches one of these intents:
+
+- **Architect intent** -- User wants to build something new. Triggers: "build me", "here's a spec", "create an app", "new project", or an attachment that looks like a spec/requirements doc.
+  1. Pick a short kebab-case project name from the description (e.g., `inventory-app`)
+  2. Create the project directory: `mkdir -p ~/Documents/<project-name>`
+  3. Initialize git: `cd ~/Documents/<project-name> && git init`
+  4. Create a Discord channel: `bash ~/.claude/bin/discord-create-channel.sh <project-name> ~/Documents/<project-name>`
+  5. If there are attachments, download them and copy to `~/Documents/<project-name>/.claude/attachments/`
+  6. Dispatch with the architect agent: `bash ~/.claude/bin/dispatch-to-session.sh <project-name> ~/Documents/<project-name> <new-channel-id> "<message with attachment paths>" architect`
+  7. Reply to Discord: "Created project <project-name>, spun up #<project-name> with the architect agent."
+
+- **Researcher intent** -- User wants something researched. Triggers: "research", "look into", "investigate", "deep dive on", "what's the best way to", "compare X vs Y".
+  All research lives in a single shared repo: `~/Documents/research/`
+  1. Create the research repo if it doesn't exist: `mkdir -p ~/Documents/research && cd ~/Documents/research && git init`
+  2. Pick a short kebab-case name for the topic (e.g., `webtransport-vs-websockets`)
+  3. Create a Discord channel: `bash ~/.claude/bin/discord-create-channel.sh research-<topic> ~/Documents/research`
+  4. Dispatch with the researcher agent: `bash ~/.claude/bin/dispatch-to-session.sh research-<topic> ~/Documents/research <new-channel-id> "<message>" researcher`
+  5. Reply to Discord: "Kicked off research in #research-<topic>. It'll post findings there and push the full report to GitHub when done."
+
 **Hub commands:**
 - **"spin up a channel for X"**: run `~/.claude/bin/discord-create-channel.sh <name> <path>`
 - **"clear context" for a project**: run `bash ~/.claude/bin/kill-project-session.sh <name> <channel-id>`

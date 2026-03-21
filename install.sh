@@ -50,6 +50,11 @@ cp "$SCRIPT_DIR/bin/"*.sh "$BIN_DIR/"
 cp "$SCRIPT_DIR/bin/"*.md "$BIN_DIR/" 2>/dev/null || true
 cp "$SCRIPT_DIR/project-agent-instructions.md" "$CLAUDE_DIR/project-agent-instructions.md"
 
+# Copy agent definitions
+echo "Copying agent definitions..."
+mkdir -p "$CLAUDE_DIR/agents"
+cp "$SCRIPT_DIR/agents/"*.md "$CLAUDE_DIR/agents/" 2>/dev/null || true
+
 # Copy hooks
 echo "Copying hooks..."
 cp "$SCRIPT_DIR/hooks/"*.sh "$HOOKS_DIR/"

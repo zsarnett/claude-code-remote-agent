@@ -14,6 +14,8 @@ Turn a Mac into a persistent, self-healing Claude Code workstation controlled re
 - **Zoom integration**: OAuth helpers and transcript access via MCP server
 - **Outlook/Teams integration**: Microsoft 365 email, calendar, tasks, and Teams via MCP
 - **SecondBrain integration**: Morning briefings, inbox processing, and knowledge vault queries
+- **Architect agent**: Upload a spec via Discord, get a design critique, phased plan, and auto-built app with Chrome E2E testing, user story validation, and screenshot-based design review
+- **Researcher agent**: Deep-dive research with parallel agent waves, rabbit hole recursion, and auto-published results to GitHub
 - **Monitoring**: Nightly git repo checks, disk usage alerts, crash notifications
 
 ## Architecture
@@ -225,6 +227,16 @@ Open `http://localhost:7777` to see:
 
 The dispatch script (`dispatch-to-session.sh`) uses tmux's `load-buffer` + `paste-buffer` approach instead of `send-keys` to avoid quoting issues with complex messages. Messages are written to a temp file, loaded into tmux's buffer, pasted into the target session, and then Enter is sent.
 
+An optional 5th argument specifies an agent type (e.g., `architect`, `researcher`). When provided, the session starts with `claude --agent <name>` instead of bare `claude`.
+
+### Specialized Agents
+
+Agent definitions live in `~/.claude/agents/` and are selected automatically by the hub based on intent detection:
+
+- **Architect** (`agents/architect.md`): Full app lifecycle from spec to running code. Reads specs, critiques them, asks questions via Discord, produces a phased plan, waits for approval, then auto-builds all phases using agent teams. Each phase gets Docker + DB seeding, Chrome E2E testing, and a commit. After all phases: validates every user story in Chrome, screenshots every page, and runs a design critique via `/frontend-design`.
+
+- **Researcher** (`agents/researcher.md`): Recursive deep research. Breaks a topic into branches, spawns parallel agents per branch, synthesizes findings, scores rabbit holes, and recurses up to 3 waves. All output goes into a shared `research/` repo with per-topic subfolders. Pushes to GitHub and posts the summary + link to Discord. Kills its own session when done.
+
 ### Self-Healing
 
 - **Crash recovery**: `agent-loop.sh` wraps each session and auto-restarts on crash (up to 5 rapid crashes in 60 seconds)
@@ -249,6 +261,9 @@ Two Claude Code hooks power the system:
 ~/.claude/
   start-agent.sh              # Session launcher
   project-agent-instructions.md
+  agents/
+    architect.md               # Spec-to-app agent with Chrome testing
+    researcher.md              # Deep research with parallel agents
   timers/                     # Active timer state files
   bin/
     agent-loop.sh              # Auto-restart wrapper
