@@ -40,7 +40,8 @@ echo ""
 # Create directories
 echo "Creating directories..."
 mkdir -p "$BIN_DIR" "$HOOKS_DIR" "$DASHBOARD_DIR" "$LOGS_DIR"
-mkdir -p "$CHANNELS_DIR/discord" "$CHANNELS_DIR/slack"
+mkdir -p "$CHANNELS_DIR/discord" "$CHANNELS_DIR/slack" "$CHANNELS_DIR/zoom"
+mkdir -p "$CLAUDE_DIR/timers"
 
 # Copy scripts
 echo "Copying scripts..."
@@ -91,6 +92,18 @@ if [ ! -f "$CHANNELS_DIR/slack/config.json" ]; then
   echo "** Edit $CHANNELS_DIR/slack/config.json if you want Slack bridge support **"
 fi
 
+if [ ! -f "$CHANNELS_DIR/zoom/config.json" ]; then
+  cp "$SCRIPT_DIR/channels/zoom/config.example.json" "$CHANNELS_DIR/zoom/config.json"
+  echo "** Edit $CHANNELS_DIR/zoom/config.json if you want Zoom transcript integration **"
+fi
+
+# Copy HEARTBEAT.md template if not present
+WORKSPACE_DIR="${CLAUDE_AGENT_WORKSPACE:-$HOME/Documents}"
+if [ ! -f "$WORKSPACE_DIR/HEARTBEAT.md" ] && [ ! -f "$HOME/HEARTBEAT.md" ]; then
+  cp "$SCRIPT_DIR/examples/HEARTBEAT.md.example" "$HOME/HEARTBEAT.md"
+  echo "** Copied HEARTBEAT.md template to $HOME/HEARTBEAT.md -- customize your checks **"
+fi
+
 # Set up LaunchAgent (macOS only)
 if [ -d "$LAUNCH_DIR" ]; then
   echo ""
@@ -125,6 +138,8 @@ $SCHEDULE $CMD"
 add_cron "*/5 * * * *" "bash ~/.claude/bin/health-check.sh >> ~/.claude/logs/health-check.log 2>&1" "Claude Agent - Health check every 5 minutes"
 add_cron "0 21 * * *" "bash ~/.claude/bin/git-check.sh >> ~/.claude/logs/git-check.log 2>&1" "Claude Agent - Nightly git repo check at 9pm"
 add_cron "0 8 * * *" "bash ~/.claude/bin/disk-check.sh >> ~/.claude/logs/disk-check.log 2>&1" "Claude Agent - Daily disk usage check at 8am"
+add_cron "*/30 * * * *" "bash ~/.claude/bin/heartbeat.sh >> ~/.claude/logs/heartbeat.log 2>&1" "Claude Agent - Heartbeat every 30 minutes"
+add_cron "0 8 * * 1-5" "bash ~/.claude/bin/morning-briefing.sh >> ~/.claude/logs/morning-briefing.log 2>&1" "Claude Agent - Morning briefing weekdays at 8am"
 
 echo "$NEW_CRON" | crontab -
 
@@ -147,7 +162,10 @@ echo "  3. Edit ~/.claude/channels/discord/channel-map.json with your guild/chan
 echo "  4. Edit ~/.claude/channels/discord/access.json with your Discord user ID"
 echo "  5. Update discord-create-channel.sh with your bot user ID and Discord user ID"
 echo "  6. Update discord-notify.sh with your hub channel ID"
-echo "  7. Run: claude-agent  (to start the hub session)"
-echo "  8. Open http://localhost:7777 to see the dashboard"
+echo "  7. (Optional) Edit ~/.claude/channels/zoom/config.json for Zoom transcripts"
+echo "  8. (Optional) Set up Outlook MCP -- see bin/outlook-setup-instructions.md"
+echo "  9. (Optional) Customize ~/HEARTBEAT.md with your monitoring checks"
+echo " 10. Run: claude-agent  (to start the hub session)"
+echo " 11. Open http://localhost:7777 to see the dashboard"
 echo ""
 echo "See README.md for full setup guide."

@@ -1,0 +1,7 @@
+{
+  "client_id": "YOUR_ZOOM_CLIENT_ID",
+  "client_secret": "YOUR_ZOOM_CLIENT_SECRET",
+  "redirect_uri": "http://localhost:4000/auth/callback",
+  "auth_type": "general_oauth",
+  "scopes": ["cloud_recording:read:recording", "cloud_recording:read:meeting_transcript", "cloud_recording:read:registrant_status"]
+}

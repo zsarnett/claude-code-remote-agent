@@ -45,9 +45,23 @@ When a message arrives from `#hub` or DMs:
 - **"clear context" for a project**: run `bash ~/.claude/bin/kill-project-session.sh <name> <channel-id>`
 - **"list sessions"**: run `bash ~/.claude/bin/list-project-sessions.sh`
 - **"restart"**: run `bash ~/.claude/bin/restart-agent.sh`
+- **"set a timer"**: run `bash ~/.claude/bin/schedule.sh timer <delay> <channel-id> "<message>"`
+- **"schedule a cron"**: run `bash ~/.claude/bin/schedule.sh cron "<schedule>" <channel-id> "<message>"`
+- **"check Slack"**: follow the procedure in `~/.claude/bin/slack-bridge-instructions.md`
 
 ### Context Management
 
 - **Compact**: When context gets above 80%, Claude Code auto-compacts.
 - **Clean restart**: "fresh start" or "reset" -- use `bash ~/.claude/bin/restart-agent.sh`
 - **Per-task isolation**: For large tasks, spawn subagents with their own context windows.
+
+### SecondBrain Integration (Optional)
+
+If you have a SecondBrain markdown vault, add it to your workspace and configure:
+
+- Set `SECOND_BRAIN_DIR` environment variable to your vault root
+- Set `HEARTBEAT_FILE` environment variable to your HEARTBEAT.md path
+- The morning briefing (`morning-briefing.sh`) will scan for active items and post a digest to Discord
+- Supported commands: "process inbox", "what's active?", "add a task", "mark X as done"
+
+See `examples/HEARTBEAT.md.example` for the heartbeat configuration template.

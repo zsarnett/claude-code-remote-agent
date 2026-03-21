@@ -1,0 +1,12 @@
+# Heartbeat Checklist
+
+This file is read every 30 minutes by the agent. For each item, assess the current state and take action if needed. If nothing needs attention, stay silent (do not post to Discord).
+
+Only post to Discord when something actually needs attention or when an action was taken.
+
+## Checks
+
+- [ ] **Git repos**: Any repos in ~/Documents with uncommitted changes sitting for more than 24 hours? If so, remind me.
+- [ ] **Disk usage**: Is disk usage above 75%? If so, alert.
+- [ ] **Agent sessions**: Are any project sessions (claude-*) crashed or stuck? Check with `tmux list-sessions`.
+- [ ] **Docker**: Is Docker running containers that are unhealthy or stopped unexpectedly? Check with `docker ps -a`.

@@ -9,6 +9,9 @@ follow this procedure.
 - Config file: `~/.claude/channels/slack/config.json`
 - Discord notify script: `~/.claude/bin/discord-notify.sh`
 - Bridge helper script: `~/.claude/bin/slack-bridge.sh`
+- Slack user ID: `YOUR_SLACK_USER_ID`
+- Workspace: your-workspace (your-workspace.slack.com)
+- Discord #hub channel ID: `YOUR_HUB_CHANNEL_ID`
 
 ## Procedure: Full Bridge Check
 
@@ -27,6 +30,7 @@ mcp__claude_ai_Slack__slack_search_public_and_private
 ```
 
 This finds messages that mention you across all accessible channels.
+Also check for DMs if the tools support it.
 
 ### Step 3 -- Check Each Monitored Channel
 
@@ -49,9 +53,9 @@ For each channel in `channels_to_monitor`:
 3. Apply filtering rules:
    - If `forward_all` is true: forward every message.
    - Otherwise, check each message for:
-     - Direct mentions of you
+     - Direct mentions of your user (`<@YOUR_SLACK_USER_ID>` or your name)
      - Any of the `urgent_keywords` from config
-     - Threads you have participated in
+     - Threads you have participated in (if `always_forward.threads_zack_participated_in` is true)
 
 ### Step 4 -- Forward to Discord
 
@@ -93,8 +97,9 @@ When forwarding messages to Discord, use this format:
 
 Messages are categorized by urgency for prioritization:
 
-- **HIGH**: Direct mentions, DMs, messages in high-priority channels,
-  messages containing urgent keywords
+- **HIGH**: Direct mentions of you, DMs to you, messages in high-priority channels,
+  messages containing urgent keywords (urgent, asap, critical, emergency, blocking,
+  outage, down, incident, p0, p1)
 - **MEDIUM**: Messages in medium-priority channels that match keyword filters
 - **LOW**: Messages in low-priority channels that match filters
 

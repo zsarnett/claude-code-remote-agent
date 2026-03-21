@@ -5,3 +5,6 @@ node_modules/
 channels/discord/channel-map.json
 channels/discord/access.json
 channels/slack/config.json
+channels/zoom/config.json
+channels/zoom/token.json
+package-lock.json

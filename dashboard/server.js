@@ -15,6 +15,14 @@ const CHANNEL_MAP_PATH = path.join(
   "discord",
   "channel-map.json"
 );
+const HEARTBEAT_PATH = process.env.HEARTBEAT_PATH || path.join(
+  HOME,
+  "HEARTBEAT.md"
+);
+const SECOND_BRAIN_DIR = process.env.SECOND_BRAIN_DIR || path.join(
+  HOME,
+  "SecondBrain"
+);
 
 // ---------------------------------------------------------------------------
 // Data helpers
@@ -203,6 +211,86 @@ function formatUptime(seconds) {
 }
 
 // ---------------------------------------------------------------------------
+// SecondBrain helpers
+// ---------------------------------------------------------------------------
+
+function parseFrontmatter(content) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { meta: {}, body: content };
+  const raw = match[1];
+  const body = match[2].trim();
+  const meta = {};
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^(\w[\w_]*)\s*:\s*(.*)$/);
+    if (!m) continue;
+    let val = m[2].trim();
+    // Parse array values like [a, b, c]
+    if (val.startsWith("[") && val.endsWith("]")) {
+      val = val
+        .slice(1, -1)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    meta[m[1]] = val;
+  }
+  return { meta, body };
+}
+
+function readBrainFiles(dir, folder) {
+  const results = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Skip hidden dirs, node_modules, docs
+      if (
+        entry.name.startsWith(".") ||
+        entry.name === "node_modules" ||
+        entry.name === "docs"
+      ) {
+        continue;
+      }
+      results.push(...readBrainFiles(fullPath, folder || entry.name));
+    } else if (entry.name.endsWith(".md") && entry.name !== "CLAUDE.md" && entry.name !== "Today.md") {
+      try {
+        const content = fs.readFileSync(fullPath, "utf-8");
+        const { meta, body } = parseFrontmatter(content);
+        results.push({
+          file: entry.name,
+          folder: folder || "_root",
+          path: fullPath,
+          ...meta,
+          body,
+        });
+      } catch {
+        // skip unreadable files
+      }
+    }
+  }
+  return results;
+}
+
+function getBrainData() {
+  const items = readBrainFiles(SECOND_BRAIN_DIR, null);
+  const counts = { active: 0, planning: 0, needs_review: 0, done: 0, inbox: 0 };
+  for (const item of items) {
+    if (item.folder === "_Inbox") {
+      counts.inbox++;
+    }
+    if (item.status && counts.hasOwnProperty(item.status)) {
+      counts[item.status]++;
+    }
+  }
+  return { items, counts };
+}
+
+// ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
 
@@ -217,6 +305,46 @@ app.get("/api/status", (_req, res) => {
     recentActivity: getRecentActivity(),
   };
   res.json(data);
+});
+
+app.get("/api/heartbeat", (_req, res) => {
+  try {
+    const content = fs.readFileSync(HEARTBEAT_PATH, "utf-8");
+    // Parse checklist items
+    const items = [];
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const match = line.match(/^- \[([ x])\] \*\*(.+?)\*\*:?\s*(.*)/);
+      if (match) {
+        items.push({
+          checked: match[1] === "x",
+          name: match[2],
+          description: match[3],
+        });
+      }
+    }
+    // Get last heartbeat log entry
+    let lastRun = null;
+    try {
+      const log = fs.readFileSync(path.join(LOGS_DIR, "heartbeat.log"), "utf-8");
+      const logLines = log.trim().split("\n").filter(Boolean);
+      lastRun = logLines[logLines.length - 1] || null;
+    } catch {}
+    res.json({ items, lastRun, raw: content });
+  } catch {
+    res.json({ items: [], lastRun: null, raw: "" });
+  }
+});
+
+app.get("/api/brain", (_req, res) => {
+  res.json(getBrainData());
+});
+
+app.get("/api/brain/:id", (req, res) => {
+  const { items } = getBrainData();
+  const item = items.find((i) => i.id === req.params.id);
+  if (!item) return res.status(404).json({ error: "Item not found" });
+  res.json(item);
 });
 
 // ---------------------------------------------------------------------------
@@ -441,6 +569,7 @@ function buildHTML() {
   <nav>
     <a href="/" class="active">Dashboard</a>
     <a href="/docs">Documentation</a>
+    <a href="/brain">Brain</a>
   </nav>
 
   <div id="dashboard">
@@ -471,8 +600,7 @@ function renderSessions(sessions) {
     var status = s.attached ? "Attached" : "Detached";
     var roleLabel = s.role === "hub" ? '<span style="color:#58a6ff;font-size:11px;margin-left:6px;">HUB</span>' : '<span style="color:#8b949e;font-size:11px;margin-left:6px;">PROJECT</span>';
     var channelLabel = s.discordChannel ? ' | Discord: ' + escapeHtml(s.discordChannel) : '';
-    var homeDir = process.env.HOME || os.homedir();
-    var dirLabel = s.dir ? ' | Dir: ' + escapeHtml(s.dir.replace(homeDir + '/Documents/', '~/').replace(homeDir, '~')) : '';
+    var dirLabel = s.dir ? ' | Dir: ' + escapeHtml(s.dir.replace(HOME + '/Documents/', '~/')) : '';
     return '<div class="session-item">' +
       '<div class="name"><span class="status-dot ' + dotClass + '"></span>' + escapeHtml(s.name) + roleLabel + '</div>' +
       '<div class="detail">' + status + ' | Uptime: ' + escapeHtml(s.uptime) + channelLabel + dirLabel + '</div>' +
@@ -567,9 +695,37 @@ function render(data) {
     '<div class="card"><h2>Cron Jobs</h2>' + renderCron(data.cron) + '</div>' +
     '<div class="card"><h2>Log Files</h2>' + renderLogs(data.logs) + '</div>' +
     '<div class="card"><h2>Recent Activity (last 20 lines)</h2>' + renderActivity(data.recentActivity) + '</div>' +
-    '<div class="card"><h2>Quick Actions</h2>' + renderActions() + '</div>';
+    '<div class="card"><h2>Quick Actions</h2>' + renderActions() + '</div>' +
+    '<div class="card" id="heartbeat-card"><h2>Heartbeat</h2><p class="empty">Loading...</p></div>';
   document.getElementById("dashboard").innerHTML = html;
   document.getElementById("last-updated").textContent = "Updated: " + new Date(data.timestamp).toLocaleTimeString();
+  fetchHeartbeat();
+}
+
+function fetchHeartbeat() {
+  fetch("/api/heartbeat")
+    .then(function(r) { return r.json(); })
+    .then(function(hb) {
+      var card = document.getElementById("heartbeat-card");
+      if (!card) return;
+      var html = '<h2>Heartbeat <span style="font-size:0.7rem;color:var(--text-dim);font-weight:normal;">every 30 min</span></h2>';
+      if (hb.lastRun) {
+        html += '<div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;">Last: ' + escapeHtml(hb.lastRun.substring(0, 60)) + '</div>';
+      }
+      if (hb.items && hb.items.length > 0) {
+        html += hb.items.map(function(item) {
+          var dot = item.checked ? 'color:#3fb950;' : 'color:var(--text-dim);';
+          return '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">' +
+            '<span style="' + dot + 'margin-right:6px;">' + (item.checked ? '&#10003;' : '&#9675;') + '</span>' +
+            '<strong>' + escapeHtml(item.name) + '</strong>: ' + escapeHtml(item.description) +
+          '</div>';
+        }).join('');
+      } else {
+        html += '<p class="empty">No heartbeat checks configured</p>';
+      }
+      card.innerHTML = html;
+    })
+    .catch(function() {});
 }
 
 function fetchData() {
@@ -801,6 +957,7 @@ function buildDocsHTML() {
   <nav>
     <a href="/">Dashboard</a>
     <a href="/docs" class="active">Documentation</a>
+    <a href="/brain">Brain</a>
   </nav>
 
   <!-- Table of Contents -->
@@ -1265,6 +1422,439 @@ graph LR
       messageAlign: 'center'
     }
   });
+<\/script>
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Brain HTML
+// ---------------------------------------------------------------------------
+
+app.get("/brain", (_req, res) => {
+  res.send(buildBrainHTML());
+});
+
+function buildBrainHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Workstation -- SecondBrain</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --blue: #58a6ff;
+    --gray: #484f58;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 16px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 600; }
+  header .meta { font-size: 0.8rem; color: var(--text-dim); }
+  nav {
+    display: flex;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  nav a {
+    flex: 1;
+    text-align: center;
+    padding: 12px 20px;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+    border-right: 1px solid var(--border);
+  }
+  nav a:last-child { border-right: none; }
+  nav a:hover { background: var(--surface2); color: var(--text); }
+  nav a.active { background: var(--surface2); color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+  /* Summary cards */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-card .count {
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .summary-card .label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+  .count-active { color: var(--green); }
+  .count-planning { color: var(--blue); }
+  .count-needs_review { color: var(--orange); }
+  .count-inbox { color: var(--purple); }
+
+  /* Search */
+  .search-box {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  /* Folder tabs */
+  .folder-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .folder-tab {
+    padding: 10px 16px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    border-right: 1px solid var(--border);
+    user-select: none;
+  }
+  .folder-tab:last-child { border-right: none; }
+  .folder-tab:hover { background: var(--surface2); color: var(--text); }
+  .folder-tab.active { background: var(--surface2); color: var(--accent); border-bottom: 2px solid var(--accent); }
+  .folder-tab .tab-count {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-left: 4px;
+  }
+
+  /* Item cards */
+  .item-list { display: flex; flex-direction: column; gap: 8px; }
+  .item-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .item-card:hover { border-color: var(--accent); }
+  .item-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .item-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .item-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge-active { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-planning { background: rgba(88,166,255,0.15); color: var(--blue); }
+  .badge-needs_review { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .badge-done { background: rgba(72,79,88,0.15); color: var(--gray); }
+  .badge-folder {
+    background: rgba(188,140,255,0.15);
+    color: var(--purple);
+    font-size: 0.65rem;
+  }
+  .item-next-action {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+  .item-next-action strong { color: var(--text); font-weight: 500; }
+  .item-tags {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .item-date {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .item-body {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    display: none;
+  }
+  .item-card.expanded .item-body { display: block; }
+  .empty { color: var(--text-dim); font-style: italic; font-size: 0.9rem; text-align: center; padding: 40px 0; }
+  .refresh-note { text-align: center; color: var(--text-dim); font-size: 0.75rem; padding: 12px 0; }
+  @media (max-width: 600px) {
+    body { padding: 10px; }
+    header h1 { font-size: 1.1rem; }
+    nav a { padding: 10px 12px; font-size: 0.8rem; }
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .folder-tab { padding: 8px 10px; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Claude Workstation</h1>
+    <div class="meta">
+      <span id="last-updated">Loading...</span>
+    </div>
+  </header>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/docs">Documentation</a>
+    <a href="/brain" class="active">Brain</a>
+  </nav>
+
+  <div id="brain-summary" class="summary-row"></div>
+  <input type="text" class="search-box" id="search-input" placeholder="Search by name, tags, or content..." />
+  <div id="folder-tabs" class="folder-tabs"></div>
+  <div id="brain-items" class="item-list">
+    <p class="empty">Loading SecondBrain...</p>
+  </div>
+  <div class="refresh-note">Auto-refreshes every 30 seconds</div>
+
+<script>
+var brainData = null;
+var activeFolder = "All";
+var searchQuery = "";
+
+function escapeHtml(str) {
+  if (!str) return "";
+  var div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderSummary(counts) {
+  var el = document.getElementById("brain-summary");
+  el.innerHTML =
+    '<div class="summary-card"><div class="count count-active">' + (counts.active || 0) + '</div><div class="label">Active</div></div>' +
+    '<div class="summary-card"><div class="count count-planning">' + (counts.planning || 0) + '</div><div class="label">Planning</div></div>' +
+    '<div class="summary-card"><div class="count count-needs_review">' + (counts.needs_review || 0) + '</div><div class="label">Needs Review</div></div>' +
+    '<div class="summary-card"><div class="count count-inbox">' + (counts.inbox || 0) + '</div><div class="label">Inbox</div></div>';
+}
+
+function folderForTab(item) {
+  if (item.folder === "_Inbox") return "Inbox";
+  return item.folder || "Other";
+}
+
+function renderTabs(items) {
+  var folderCounts = {};
+  folderCounts["All"] = items.length;
+  for (var i = 0; i < items.length; i++) {
+    var f = folderForTab(items[i]);
+    folderCounts[f] = (folderCounts[f] || 0) + 1;
+  }
+  var order = ["All", "Projects", "People", "Ideas", "Admin", "Inbox"];
+  var el = document.getElementById("folder-tabs");
+  el.innerHTML = order.map(function(tab) {
+    var cls = tab === activeFolder ? "folder-tab active" : "folder-tab";
+    var cnt = folderCounts[tab] || 0;
+    return '<div class="' + cls + '" data-folder="' + tab + '">' + escapeHtml(tab) + '<span class="tab-count">(' + cnt + ')</span></div>';
+  }).join("");
+
+  var tabs = el.querySelectorAll(".folder-tab");
+  for (var t = 0; t < tabs.length; t++) {
+    tabs[t].addEventListener("click", function() {
+      activeFolder = this.getAttribute("data-folder");
+      renderAll();
+    });
+  }
+}
+
+function matchesSearch(item, q) {
+  if (!q) return true;
+  var lower = q.toLowerCase();
+  if ((item.name || "").toLowerCase().indexOf(lower) !== -1) return true;
+  if ((item.body || "").toLowerCase().indexOf(lower) !== -1) return true;
+  if (Array.isArray(item.tags)) {
+    for (var i = 0; i < item.tags.length; i++) {
+      if (item.tags[i].toLowerCase().indexOf(lower) !== -1) return true;
+    }
+  }
+  return false;
+}
+
+function filterItems(items) {
+  return items.filter(function(item) {
+    if (activeFolder !== "All") {
+      var f = folderForTab(item);
+      if (f !== activeFolder) return false;
+    }
+    return matchesSearch(item, searchQuery);
+  });
+}
+
+function renderItems(items) {
+  var el = document.getElementById("brain-items");
+  var filtered = filterItems(items);
+  if (filtered.length === 0) {
+    el.innerHTML = '<p class="empty">No items match your search or filter.</p>';
+    return;
+  }
+  // Sort: active first, then planning, needs_review, done; then by last_updated desc
+  var statusOrder = { active: 0, planning: 1, needs_review: 2, done: 3 };
+  filtered.sort(function(a, b) {
+    var sa = statusOrder[a.status] !== undefined ? statusOrder[a.status] : 99;
+    var sb = statusOrder[b.status] !== undefined ? statusOrder[b.status] : 99;
+    if (sa !== sb) return sa - sb;
+    return (b.last_updated || "").localeCompare(a.last_updated || "");
+  });
+
+  el.innerHTML = filtered.map(function(item, idx) {
+    var badgeClass = "badge badge-" + (item.status || "done");
+    var tags = Array.isArray(item.tags) ? item.tags : [];
+    var tagsHtml = tags.map(function(t) {
+      return '<span class="tag">' + escapeHtml(t) + '</span>';
+    }).join("");
+    var nextAction = item.next_action && item.next_action !== "none"
+      ? '<div class="item-next-action"><strong>Next:</strong> ' + escapeHtml(item.next_action) + '</div>'
+      : '';
+    var dateHtml = item.last_updated
+      ? '<div class="item-date">Updated: ' + escapeHtml(item.last_updated) + '</div>'
+      : '';
+    var bodyHtml = item.body
+      ? '<div class="item-body">' + escapeHtml(item.body) + '</div>'
+      : '';
+
+    return '<div class="item-card" data-idx="' + idx + '">' +
+      '<div class="item-card-header">' +
+        '<span class="item-name">' + escapeHtml(item.name || item.file) + '</span>' +
+        '<div class="item-meta">' +
+          '<span class="badge badge-folder">' + escapeHtml(folderForTab(item)) + '</span>' +
+          '<span class="' + badgeClass + '">' + escapeHtml((item.status || "").replace("_", " ")) + '</span>' +
+        '</div>' +
+      '</div>' +
+      nextAction +
+      (tagsHtml ? '<div class="item-tags">' + tagsHtml + '</div>' : '') +
+      dateHtml +
+      bodyHtml +
+    '</div>';
+  }).join("");
+
+  // Click to expand
+  var cards = el.querySelectorAll(".item-card");
+  for (var c = 0; c < cards.length; c++) {
+    cards[c].addEventListener("click", function() {
+      this.classList.toggle("expanded");
+    });
+  }
+}
+
+function renderAll() {
+  if (!brainData) return;
+  renderSummary(brainData.counts);
+  renderTabs(brainData.items);
+  renderItems(brainData.items);
+  document.getElementById("last-updated").textContent = "Updated: " + new Date().toLocaleTimeString();
+}
+
+function fetchBrain() {
+  fetch("/api/brain")
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      brainData = data;
+      renderAll();
+    })
+    .catch(function(err) {
+      document.getElementById("brain-items").innerHTML =
+        '<p class="empty">Error loading data: ' + escapeHtml(err.message) + '</p>';
+    });
+}
+
+document.getElementById("search-input").addEventListener("input", function() {
+  searchQuery = this.value;
+  renderAll();
+});
+
+fetchBrain();
+setInterval(fetchBrain, 30000);
 <\/script>
 </body>
 </html>`;
