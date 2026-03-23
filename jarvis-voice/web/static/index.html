@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis</title>
+<script src="https://unpkg.com/feather-icons"></script>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg-card: #12121a;
+  --bg-hover: #1a1a28;
+  --bg-input: #16161f;
+  --border: #2a2a3a;
+  --text: #e0e0e8;
+  --text-dim: #8888a0;
+  --text-dimmer: #555568;
+  --accent: #4a9eff;
+  --accent-dim: #2a6ecc;
+  --green: #4aff8a;
+  --yellow: #ffd04a;
+  --red: #ff4a6a;
+  --orange: #ff8a4a;
+  --purple: #8a4aff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Layout */
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+}
+
+/* Header */
+.header {
+  grid-column: 1 / -1;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+}
+
+.header-logo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.header-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.header-status .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+.nav-section {
+  padding: 8px 16px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dimmer);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 14px;
+  gap: 10px;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.nav-item.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: rgba(74, 158, 255, 0.05);
+}
+
+.nav-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Main Content */
+.main {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.page.active { display: flex; flex-direction: column; }
+
+/* Dashboard */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dimmer);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Sessions list */
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.session-card:hover { border-color: var(--accent); }
+
+.session-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.session-dot.hub { background: var(--accent); }
+.session-dot.project { background: var(--green); }
+
+.session-info { flex: 1; min-width: 0; }
+
+.session-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.session-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.session-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-sm:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-sm.danger:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* Chat page */
+.chat-page {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.chat-page.active { display: flex; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--accent-dim);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-msg.system {
+  align-self: center;
+  background: transparent;
+  color: var(--text-dimmer);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.chat-msg .tool-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(138, 74, 255, 0.15);
+  color: var(--purple);
+  border-radius: 4px;
+  font-size: 11px;
+  margin: 4px 2px;
+}
+
+.chat-msg .model-badge {
+  font-size: 10px;
+  color: var(--text-dimmer);
+  margin-bottom: 4px;
+}
+
+.chat-input-area {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--bg-card);
+}
+
+.chat-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.chat-input:focus { border-color: var(--accent); }
+
+.chat-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.chat-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chat-btn.send {
+  background: var(--accent);
+  color: white;
+}
+
+.chat-btn.send:hover { background: var(--accent-dim); }
+
+.chat-btn.mic {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.chat-btn.mic:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.chat-btn.mic.recording {
+  background: var(--red);
+  border-color: var(--red);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.chat-btn.speak {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.chat-btn.speak:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Projects page */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.project-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.project-card .name {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.project-card .dir {
+  font-size: 11px;
+  color: var(--text-dimmer);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.project-card .git-info {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.project-card .actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Brain page */
+.brain-search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.brain-search input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.brain-search input:focus { border-color: var(--accent); }
+
+.brain-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brain-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.brain-item .folder-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.brain-item .folder-badge.Projects { background: rgba(74,158,255,0.15); color: var(--accent); }
+.brain-item .folder-badge.People { background: rgba(74,255,138,0.15); color: var(--green); }
+.brain-item .folder-badge.Ideas { background: rgba(255,208,74,0.15); color: var(--yellow); }
+.brain-item .folder-badge.Admin { background: rgba(138,74,255,0.15); color: var(--purple); }
+
+.brain-item .name { font-weight: 600; font-size: 14px; }
+.brain-item .next { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* New project dialog */
+.dialog-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-overlay.open { display: flex; }
+
+.dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.dialog h3 {
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.dialog label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  margin-top: 12px;
+}
+
+.dialog input, .dialog select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+.btn:hover { border-color: var(--accent); }
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.btn.primary:hover { background: var(--accent-dim); }
+
+/* Typing indicator */
+.typing-indicator {
+  display: none;
+  padding: 10px 14px;
+  align-self: flex-start;
+}
+
+.typing-indicator.active { display: block; }
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dimmer);
+  animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dimmer); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">JARVIS</div>
+    <div class="header-status">
+      <span class="dot" id="ws-dot"></span>
+      <span id="ws-status">Connecting...</span>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" data-page="dashboard">
+      <span class="nav-icon"><i data-feather="activity"></i></span> Dashboard
+    </div>
+    <div class="nav-item" data-page="chat">
+      <span class="nav-icon"><i data-feather="message-circle"></i></span> Chat
+    </div>
+    <div class="nav-section">Workspace</div>
+    <div class="nav-item" data-page="projects">
+      <span class="nav-icon"><i data-feather="folder"></i></span> Projects
+    </div>
+    <div class="nav-item" data-page="brain">
+      <span class="nav-icon"><i data-feather="book-open"></i></span> SecondBrain
+    </div>
+    <div class="nav-section">Quick Actions</div>
+    <div class="nav-item" onclick="openNewProject()">
+      <span class="nav-icon"><i data-feather="plus-circle"></i></span> New Project
+    </div>
+    <div class="nav-item" onclick="sendQuickChat('What is active in my projects?')">
+      <span class="nav-icon"><i data-feather="list"></i></span> Active Items
+    </div>
+    <div class="nav-item" onclick="sendQuickChat('Check my email')">
+      <span class="nav-icon"><i data-feather="mail"></i></span> Check Email
+    </div>
+    <div class="nav-item" onclick="sendQuickChat('What is on my calendar today?')">
+      <span class="nav-icon"><i data-feather="calendar"></i></span> Calendar
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Dashboard Page -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="section-title">Active Sessions</div>
+      <div class="session-list" id="session-list"></div>
+    </div>
+
+    <!-- Chat Page -->
+    <div class="chat-page" id="page-chat">
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg system">Jarvis connected to hub. Type a message or hold the mic button to speak. Same capabilities as the hub -- dispatch, SecondBrain, Home Assistant, email, and more.</div>
+      </div>
+      <div class="typing-indicator" id="typing-indicator">
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="chat-input-area">
+        <button class="chat-btn mic" id="mic-btn" title="Hold to speak"><i data-feather="mic"></i></button>
+        <textarea class="chat-input" id="chat-input" placeholder="Message Jarvis..." rows="1"></textarea>
+        <button class="chat-btn speak" id="speak-btn" title="Read last response aloud"><i data-feather="volume-2"></i></button>
+        <button class="chat-btn send" id="send-btn" title="Send"><i data-feather="send"></i></button>
+      </div>
+    </div>
+
+    <!-- Projects Page -->
+    <div class="page" id="page-projects">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div class="section-title" style="margin-bottom:0">Projects</div>
+        <button class="btn primary" onclick="openNewProject()">+ New Project</button>
+      </div>
+      <div class="projects-grid" id="projects-grid"></div>
+    </div>
+
+    <!-- SecondBrain Page -->
+    <div class="page" id="page-brain">
+      <div class="section-title">SecondBrain</div>
+      <div class="brain-search">
+        <input type="text" id="brain-search" placeholder="Search notes..." onkeyup="searchBrain(event)">
+      </div>
+      <div class="section-title" style="font-size:13px; color:var(--text-dim)">Active Items</div>
+      <div class="brain-items" id="brain-items"></div>
+    </div>
+  </div>
+</div>
+
+<!-- New Project Dialog -->
+<div class="dialog-overlay" id="new-project-dialog">
+  <div class="dialog">
+    <h3>New Project</h3>
+    <label>Project Name (kebab-case)</label>
+    <input type="text" id="project-name" placeholder="my-new-project">
+    <label>Agent Type</label>
+    <select id="project-agent">
+      <option value="">None (empty project)</option>
+      <option value="architect">Architect (spec-to-app)</option>
+      <option value="researcher">Researcher (deep research)</option>
+    </select>
+    <label>Initial Message (optional)</label>
+    <input type="text" id="project-message" placeholder="Build me a...">
+    <div class="dialog-actions">
+      <button class="btn" onclick="closeDialog()">Cancel</button>
+      <button class="btn primary" onclick="createProject()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- State ----
+let ws = null;
+let currentAssistantMsg = null;
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let lastResponse = '';
+
+// ---- Helpers ----
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ---- WebSocket ----
+function connectWS() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws/chat`);
+
+  ws.onopen = () => {
+    document.getElementById('ws-dot').style.background = 'var(--green)';
+    document.getElementById('ws-status').textContent = 'Connected';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('ws-dot').style.background = 'var(--red)';
+    document.getElementById('ws-status').textContent = 'Disconnected';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => {
+    document.getElementById('ws-dot').style.background = 'var(--red)';
+    document.getElementById('ws-status').textContent = 'Error';
+  };
+
+  ws.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    handleWSMessage(data);
+  };
+}
+
+function handleWSMessage(data) {
+  const messages = document.getElementById('chat-messages');
+  const typing = document.getElementById('typing-indicator');
+
+  switch (data.type) {
+    case 'text_chunk':
+      typing.classList.remove('active');
+      // When dual_model switches from fast to deep, start a new message bubble
+      if (data.label === 'deep' && currentAssistantMsg && !currentAssistantMsg.dataset.deep) {
+        currentAssistantMsg = null;
+      }
+      if (!currentAssistantMsg) {
+        currentAssistantMsg = document.createElement('div');
+        currentAssistantMsg.className = 'chat-msg assistant';
+        if (data.label === 'deep') {
+          currentAssistantMsg.dataset.deep = '1';
+          currentAssistantMsg.style.borderLeft = '2px solid var(--purple)';
+          currentAssistantMsg.style.paddingLeft = '12px';
+        }
+        currentAssistantMsg.innerHTML = '';
+        messages.appendChild(currentAssistantMsg);
+      }
+      currentAssistantMsg.textContent += data.text;
+      messages.scrollTop = messages.scrollHeight;
+      break;
+
+    case 'tool_start':
+      if (currentAssistantMsg) {
+        const badge = document.createElement('span');
+        badge.className = 'tool-badge';
+        badge.textContent = data.name;
+        currentAssistantMsg.appendChild(document.createElement('br'));
+        currentAssistantMsg.appendChild(badge);
+      }
+      break;
+
+    case 'intent':
+      typing.classList.add('active');
+      audioQueue = [];
+      messages.scrollTop = messages.scrollHeight;
+      break;
+
+    case 'dual_model':
+      if (data.phase === 'deep') {
+        // Visual separator between fast and deep responses
+        currentAssistantMsg = null;
+      }
+      break;
+
+    case 'response_complete':
+      typing.classList.remove('active');
+      lastResponse = data.text || '';
+      currentAssistantMsg = null;
+      messages.scrollTop = messages.scrollHeight;
+      break;
+
+    case 'transcription':
+      addMessage('user', data.text);
+      break;
+
+    case 'audio_response':
+      playAudioResponse(data.audio);
+      break;
+
+    case 'status':
+      addMessage('system', data.message);
+      break;
+
+    case 'error':
+      typing.classList.remove('active');
+      addMessage('system', 'Error: ' + data.message);
+      currentAssistantMsg = null;
+      break;
+  }
+}
+
+function addMessage(role, text) {
+  const messages = document.getElementById('chat-messages');
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg ' + role;
+  msg.textContent = text;
+  messages.appendChild(msg);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// ---- Chat ----
+function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  addMessage('user', text);
+  ws.send(JSON.stringify({ type: 'text', text, speak: true }));
+  input.value = '';
+  input.style.height = 'auto';
+  currentAssistantMsg = null;
+}
+
+function sendQuickChat(text) {
+  navigateTo('chat');
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  addMessage('user', text);
+  ws.send(JSON.stringify({ type: 'text', text, speak: true }));
+  currentAssistantMsg = null;
+}
+
+// ---- Voice ----
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+
+      // Convert to WAV using AudioContext
+      const arrayBuffer = await blob.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      // Get mono channel
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+
+      // Create WAV
+      const wavBuffer = encodeWAV(channelData, sampleRate);
+      const base64 = arrayBufferToBase64(wavBuffer);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'audio', audio: base64 }));
+        addMessage('system', 'Processing voice...');
+      }
+      audioCtx.close();
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('mic-btn').classList.add('recording');
+  } catch (err) {
+    if (!document.querySelector('.chat-msg.system.mic-error')) {
+      const msg = document.createElement('div');
+      msg.className = 'chat-msg system mic-error';
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        msg.textContent = 'Microphone requires HTTPS. Use https://' + location.host + ' instead (accept the self-signed certificate).';
+      } else {
+        msg.textContent = 'Microphone access denied. Check browser permissions.';
+      }
+      document.getElementById('chat-messages').appendChild(msg);
+      document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+    }
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('mic-btn').classList.remove('recording');
+  }
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  function writeString(offset, string) {
+    for (let i = 0; i < string.length; i++)
+      view.setUint8(offset + i, string.charCodeAt(i));
+  }
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return buffer;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++)
+    binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+// Audio queue for streaming TTS -- plays chunks sequentially
+let audioQueue = [];
+let isPlayingAudio = false;
+
+function playAudioResponse(base64Audio) {
+  audioQueue.push(base64Audio);
+  if (!isPlayingAudio) playNextAudio();
+}
+
+function playNextAudio() {
+  if (audioQueue.length === 0) {
+    isPlayingAudio = false;
+    return;
+  }
+  isPlayingAudio = true;
+  const base64Audio = audioQueue.shift();
+  const binary = atob(base64Audio);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes.buffer], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.onended = () => { URL.revokeObjectURL(url); playNextAudio(); };
+  audio.onerror = () => { URL.revokeObjectURL(url); playNextAudio(); };
+  audio.play().catch(() => playNextAudio());
+}
+
+function speakLastResponse() {
+  if (lastResponse && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'tts', text: lastResponse }));
+  }
+}
+
+// ---- Navigation ----
+function navigateTo(page) {
+  document.querySelectorAll('.page, .chat-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const el = document.getElementById('page-' + page);
+  if (el) el.classList.add('active');
+
+  document.querySelectorAll(`.nav-item[data-page="${page}"]`).forEach(n => n.classList.add('active'));
+
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'projects') loadProjects();
+  if (page === 'brain') loadBrainActive();
+}
+
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+  item.addEventListener('click', () => navigateTo(item.dataset.page));
+});
+
+// ---- Dashboard ----
+async function loadDashboard() {
+  try {
+    const [statusRes, sessionsRes] = await Promise.all([
+      fetch('/api/status'),
+      fetch('/api/sessions')
+    ]);
+    const status = await statusRes.json();
+    const sessions = await sessionsRes.json();
+
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">CPU</div>
+        <div class="stat-value">${status.cpu_pct}%</div>
+        <div class="stat-sub">${status.cpu_count} cores</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Memory</div>
+        <div class="stat-value">${status.mem_used_pct}%</div>
+        <div class="stat-sub">${status.mem_total_gb} GB total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Disk</div>
+        <div class="stat-value">${status.disk_used_pct}%</div>
+        <div class="stat-sub">${status.disk_used_gb} / ${status.disk_total_gb} GB</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sessions</div>
+        <div class="stat-value">${sessions.length}</div>
+        <div class="stat-sub">${sessions.filter(s => s.role === 'project').length} projects</div>
+      </div>
+    `;
+
+    document.getElementById('session-list').innerHTML = sessions.map(s => `
+      <div class="session-card">
+        <div class="session-dot ${esc(s.role)}"></div>
+        <div class="session-info">
+          <div class="session-name">${esc(s.name)}</div>
+          <div class="session-meta">${esc(s.role)} | ${esc(s.uptime)} | ${esc(s.dir || '')}</div>
+        </div>
+        <div class="session-actions">
+          ${s.role === 'project' ? `
+            <button class="btn-sm" onclick="dispatchToSession('${esc(s.project)}')">Dispatch</button>
+            <button class="btn-sm danger" onclick="killSession('${esc(s.project)}')">Kill</button>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+  }
+}
+
+// ---- Projects ----
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    const projects = await res.json();
+
+    document.getElementById('projects-grid').innerHTML = projects.map(p => `
+      <div class="project-card">
+        <div class="name">${esc(p.name)}${p.isHub ? ' (hub)' : ''}</div>
+        <div class="dir">${esc(p.dir)}</div>
+        <div class="git-info">
+          ${p.gitBranch ? `Branch: ${esc(p.gitBranch)}` : 'No git'}
+          ${p.hasChanges ? ' | Uncommitted changes' : ''}
+        </div>
+        <div class="actions">
+          ${!p.isHub ? `
+            <button class="btn-sm" onclick="dispatchToSession('${esc(p.name)}')">Dispatch</button>
+            <button class="btn-sm danger" onclick="killSession('${esc(p.name)}')">Clear Context</button>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Projects load error:', e);
+  }
+}
+
+// ---- SecondBrain ----
+async function loadBrainActive() {
+  try {
+    const res = await fetch('/api/brain/active');
+    const items = await res.json();
+
+    document.getElementById('brain-items').innerHTML = items.map(i => `
+      <div class="brain-item">
+        <span class="folder-badge ${esc(i.folder)}">${esc(i.folder)}</span>
+        <div class="name">${esc(i.name)}</div>
+        ${i.next_action ? `<div class="next">Next: ${esc(i.next_action)}</div>` : ''}
+      </div>
+    `).join('') || '<div style="color:var(--text-dimmer)">No active items</div>';
+  } catch (e) {
+    console.error('Brain load error:', e);
+  }
+}
+
+async function searchBrain(event) {
+  if (event.key !== 'Enter') return;
+  const q = event.target.value.trim();
+  if (!q) { loadBrainActive(); return; }
+
+  try {
+    const res = await fetch(`/api/brain/search?q=${encodeURIComponent(q)}`);
+    const results = await res.json();
+
+    document.getElementById('brain-items').innerHTML = results.map(r => `
+      <div class="brain-item">
+        <div class="name">${esc(r.name)}</div>
+        <div class="next">${esc(r.preview)}</div>
+        <div style="font-size:11px;color:var(--text-dimmer);margin-top:4px">${esc(r.file)}</div>
+      </div>
+    `).join('') || '<div style="color:var(--text-dimmer)">No results</div>';
+  } catch (e) {
+    console.error('Search error:', e);
+  }
+}
+
+// ---- Hub Operations ----
+async function dispatchToSession(name) {
+  const message = prompt(`Message to dispatch to ${name}:`);
+  if (!message) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${name}/dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `message=${encodeURIComponent(message)}`
+    });
+    const data = await res.json();
+    addMessage('system', `Dispatched to ${name}: ${data.status}`);
+    navigateTo('chat');
+  } catch (e) {
+    addMessage('system', `Dispatch error: ${e.message}`);
+  }
+}
+
+async function killSession(name) {
+  if (!confirm(`Kill session for ${name}? This clears its context.`)) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${name}/kill`, { method: 'POST' });
+    const data = await res.json();
+    addMessage('system', `Killed session: ${name}`);
+    loadDashboard();
+  } catch (e) {
+    addMessage('system', `Kill error: ${e.message}`);
+  }
+}
+
+function openNewProject() {
+  document.getElementById('new-project-dialog').classList.add('open');
+  document.getElementById('project-name').value = '';
+  document.getElementById('project-message').value = '';
+  document.getElementById('project-agent').value = '';
+  document.getElementById('project-name').focus();
+}
+
+function closeDialog() {
+  document.getElementById('new-project-dialog').classList.remove('open');
+}
+
+async function createProject() {
+  const name = document.getElementById('project-name').value.trim();
+  const agent = document.getElementById('project-agent').value;
+  const message = document.getElementById('project-message').value.trim();
+
+  if (!name) { alert('Project name required'); return; }
+
+  closeDialog();
+  addMessage('system', `Creating project: ${name}...`);
+  navigateTo('chat');
+
+  try {
+    const params = new URLSearchParams({ name });
+    if (agent) params.append('agent', agent);
+    const res = await fetch(`/api/projects/create?${params}`, { method: 'POST' });
+    const data = await res.json();
+    addMessage('system', `Project "${name}" created. Agent: ${data.agent}. Dir: ${data.dir}`);
+
+    if (message && !agent) {
+      // Dispatch initial message
+      await fetch(`/api/sessions/${name}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `message=${encodeURIComponent(message)}`
+      });
+      addMessage('system', `Initial message dispatched to ${name}`);
+    }
+  } catch (e) {
+    addMessage('system', `Create error: ${e.message}`);
+  }
+}
+
+// ---- Event Listeners ----
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+document.getElementById('chat-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+const micBtn = document.getElementById('mic-btn');
+micBtn.addEventListener('mousedown', startRecording);
+micBtn.addEventListener('mouseup', stopRecording);
+micBtn.addEventListener('mouseleave', stopRecording);
+micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+micBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+document.getElementById('speak-btn').addEventListener('click', speakLastResponse);
+
+document.getElementById('new-project-dialog').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeDialog();
+});
+
+// ---- Init ----
+connectWS();
+loadDashboard();
+setInterval(loadDashboard, 30000);
+feather.replace();
+</script>
+</body>
+</html>
