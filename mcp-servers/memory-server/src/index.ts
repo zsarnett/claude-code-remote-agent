@@ -22,6 +22,19 @@ import { search } from "./search.js";
 import { loadConfig } from "./config.js";
 import { syncVault, getSyncManifest, clearManifest } from "./sync.js";
 import { startWatcher, stopWatcher, isWatcherActive } from "./watcher.js";
+import {
+  checkpointToRecord,
+  handoffToRecord,
+  createCheckpointRecord,
+  parseCheckpointMetadata,
+} from "./checkpoint.js";
+import {
+  appendObservation,
+  readObservations,
+  filterObservations,
+  getObservationsPath,
+} from "./observations.js";
+import type { ObservationPriority } from "./observations.js";
 import type { MemoryRecord } from "./types.js";
 import type { Connection, Table } from "@lancedb/lancedb";
 
@@ -767,6 +780,435 @@ server.tool(
           {
             type: "text" as const,
             text: JSON.stringify({ error: errorMessage }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_checkpoint
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_checkpoint",
+  "Store a checkpoint of current work state. Captures what you are working on, blockers, recent decisions, and open questions. Use this periodically during long sessions to preserve context across compactions.",
+  {
+    working_on: z
+      .string()
+      .describe("What you are currently working on"),
+    blockers: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Current blockers or stuck points"),
+    recent_decisions: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Recent decisions made during this session"),
+    open_questions: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Open questions that need answers"),
+    session: z
+      .string()
+      .optional()
+      .describe("Session name (e.g., hub, project-foo)"),
+    cwd: z.string().optional().describe("Current working directory"),
+  },
+  async (args) => {
+    try {
+      const { text, metadata } = checkpointToRecord({
+        working_on: args.working_on,
+        blockers: args.blockers,
+        recent_decisions: args.recent_decisions,
+        open_questions: args.open_questions,
+        session: args.session,
+        cwd: args.cwd,
+      });
+
+      const record = await createCheckpointRecord(text, metadata, 0.85);
+
+      const table = await getTable();
+      if (table) {
+        await addRecords(table, [record]);
+      } else {
+        await getOrCreateTableWithRecord(record);
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              stored: true,
+              id: record.id,
+              type: "checkpoint",
+              session: args.session ?? null,
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_checkpoint] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage, stored: false }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_wake
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_wake",
+  "Retrieve the last checkpoint and high-importance recent memories. Call this when starting or resuming a session to recover context. Returns the most recent checkpoint plus important memories from a configurable time window.",
+  {
+    session: z
+      .string()
+      .optional()
+      .describe(
+        "Filter by session name. If omitted, returns the most recent checkpoint from any session."
+      ),
+    hours: z
+      .number()
+      .optional()
+      .default(24)
+      .describe(
+        "Time window in hours for recent high-importance memories (default: 24)"
+      ),
+    min_importance: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .default(0.7)
+      .describe(
+        "Minimum importance threshold for recent memories (default: 0.7)"
+      ),
+    include_observations: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include recent observations (default: true)"),
+  },
+  async (args) => {
+    try {
+      const table = await getTable();
+
+      let lastCheckpoint: Record<string, unknown> | null = null;
+      let lastHandoff: Record<string, unknown> | null = null;
+      const recentMemories: Record<string, unknown>[] = [];
+
+      if (table) {
+        // Find the most recent checkpoint
+        const allRecords = (await table
+          .query()
+          .toArray()) as unknown as MemoryRecord[];
+
+        // Filter for checkpoints and handoffs
+        const checkpoints = allRecords
+          .filter((r) => {
+            const meta = parseCheckpointMetadata(r);
+            const isCheckpoint = meta.type === "checkpoint";
+            if (args.session) {
+              return isCheckpoint && meta.session === args.session;
+            }
+            return isCheckpoint;
+          })
+          .sort((a, b) => b.created_at - a.created_at);
+
+        const handoffs = allRecords
+          .filter((r) => {
+            const meta = parseCheckpointMetadata(r);
+            const isHandoff = meta.type === "handoff";
+            if (args.session) {
+              return isHandoff && meta.session === args.session;
+            }
+            return isHandoff;
+          })
+          .sort((a, b) => b.created_at - a.created_at);
+
+        if (checkpoints.length > 0) {
+          const cp = checkpoints[0];
+          const meta = parseCheckpointMetadata(cp);
+          const { vector, ...rest } = cp;
+          lastCheckpoint = { ...rest, parsed_metadata: meta };
+        }
+
+        if (handoffs.length > 0) {
+          const hf = handoffs[0];
+          const meta = parseCheckpointMetadata(hf);
+          const { vector, ...rest } = hf;
+          lastHandoff = { ...rest, parsed_metadata: meta };
+        }
+
+        // Find high-importance recent memories
+        const cutoff = Date.now() - args.hours * 60 * 60 * 1000;
+        const recent = allRecords
+          .filter((r) => {
+            const meta = parseCheckpointMetadata(r);
+            // Exclude checkpoints and handoffs from general memories list
+            if (meta.type === "checkpoint" || meta.type === "handoff") {
+              return false;
+            }
+            return (
+              r.created_at >= cutoff && r.importance >= args.min_importance
+            );
+          })
+          .sort((a, b) => b.importance - a.importance)
+          .slice(0, 10);
+
+        for (const r of recent) {
+          const { vector, ...rest } = r;
+          recentMemories.push(rest);
+        }
+      }
+
+      // Get recent observations if requested
+      let observations: Record<string, unknown>[] = [];
+      if (args.include_observations) {
+        const allObs = await readObservations();
+        const filtered = filterObservations(allObs, {
+          sinceHours: args.hours,
+        });
+        // Sort: red first, then yellow, then green
+        const priorityOrder: Record<string, number> = {
+          red: 0,
+          yellow: 1,
+          green: 2,
+        };
+        filtered.sort(
+          (a, b) =>
+            (priorityOrder[a.priority] ?? 3) -
+            (priorityOrder[b.priority] ?? 3)
+        );
+        observations = filtered;
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              last_checkpoint: lastCheckpoint,
+              last_handoff: lastHandoff,
+              recent_memories: recentMemories,
+              recent_observations: observations,
+              wake_params: {
+                session: args.session ?? null,
+                hours: args.hours,
+                min_importance: args.min_importance,
+              },
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_wake] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_sleep
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_sleep",
+  "Store a handoff/sleep record before ending a session. Captures a summary of what was done, next steps, and unresolved blockers. This is the counterpart to memory_wake -- call sleep before session end so the next session can wake up with context.",
+  {
+    summary: z
+      .string()
+      .describe("Summary of what was accomplished in this session"),
+    next_steps: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Next steps for whoever picks this up"),
+    blockers: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Unresolved blockers"),
+    session: z
+      .string()
+      .optional()
+      .describe("Session name (e.g., hub, project-foo)"),
+    cwd: z.string().optional().describe("Current working directory"),
+  },
+  async (args) => {
+    try {
+      const { text, metadata } = handoffToRecord({
+        summary: args.summary,
+        next_steps: args.next_steps,
+        blockers: args.blockers,
+        session: args.session,
+        cwd: args.cwd,
+      });
+
+      const record = await createCheckpointRecord(text, metadata, 0.9);
+
+      const table = await getTable();
+      if (table) {
+        await addRecords(table, [record]);
+      } else {
+        await getOrCreateTableWithRecord(record);
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              stored: true,
+              id: record.id,
+              type: "handoff",
+              session: args.session ?? null,
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_sleep] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage, stored: false }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_observe
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_observe",
+  "Store a single-line observation with a priority tag. Observations are written to a flat markdown file (source of truth) and indexed in LanceDB for semantic search. Use this for quick notes, decisions, blockers, or patterns noticed during work.",
+  {
+    text: z.string().describe("The observation text (single line)"),
+    priority: z
+      .enum(["red", "yellow", "green"])
+      .describe(
+        "Priority: red = important/keep until resolved, yellow = moderate (~14 day decay), green = low priority (~7 day decay)"
+      ),
+    session: z
+      .string()
+      .optional()
+      .describe("Session name for context"),
+  },
+  async (args) => {
+    try {
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+
+      // Write to flat file (source of truth)
+      await appendObservation({
+        timestamp,
+        priority: args.priority as ObservationPriority,
+        text: args.text,
+        session: args.session,
+      });
+
+      // Also index in LanceDB for semantic search
+      const now = Date.now();
+      const importanceMap: Record<string, number> = {
+        red: 0.9,
+        yellow: 0.6,
+        green: 0.3,
+      };
+      const decayMap: Record<string, string> = {
+        red: "permanent",
+        yellow: "14d",
+        green: "7d",
+      };
+
+      const vector = await embed(args.text);
+      const record: MemoryRecord = {
+        id: crypto.randomUUID(),
+        text: args.text,
+        vector,
+        source: "agent",
+        source_path: getObservationsPath(),
+        category: "episodic",
+        tags: `observation, ${args.priority}`,
+        importance: importanceMap[args.priority] ?? 0.5,
+        access_count: 0,
+        created_at: now,
+        updated_at: now,
+        last_accessed: now,
+        file_hash: "",
+        metadata: JSON.stringify({
+          type: "observation",
+          priority: args.priority,
+          decay: decayMap[args.priority],
+          session: args.session ?? "",
+          timestamp,
+        }),
+      };
+
+      const table = await getTable();
+      if (table) {
+        await addRecords(table, [record]);
+      } else {
+        await getOrCreateTableWithRecord(record);
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              stored: true,
+              id: record.id,
+              priority: args.priority,
+              file: getObservationsPath(),
+              timestamp,
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_observe] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage, stored: false }),
           },
         ],
         isError: true,
