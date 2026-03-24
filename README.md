@@ -11,6 +11,7 @@ Turn a Mac into a persistent, self-healing Claude Code workstation controlled re
 - **Slack bridge**: Optional forwarding of Slack mentions/urgent messages to Discord
 - **Heartbeat system**: Periodic automated checks (git repos, disk, Docker, sessions) with Discord alerts
 - **Scheduler**: One-shot timers and recurring cron jobs for Discord reminders
+- **Persistent memory**: Semantic memory MCP server with LanceDB vector store, local embeddings, time decay, and background consolidation
 - **Zoom integration**: OAuth helpers and transcript access via MCP server
 - **Outlook/Teams integration**: Microsoft 365 email, calendar, tasks, and Teams via MCP
 - **SecondBrain integration**: Morning briefings, inbox processing, and knowledge vault queries
@@ -130,6 +131,32 @@ Use `bin/zoom-auth.sh` to complete the OAuth flow, and `bin/zoom-token.sh` to ge
 ### Optional: Outlook / Microsoft 365
 
 See `bin/outlook-setup-instructions.md` for Azure app registration and MCP server setup. Provides email, calendar, contacts, tasks, and Teams integration.
+
+### Optional: Memory MCP Server
+
+The Memory MCP server provides persistent semantic memory across Claude Code sessions. It auto-indexes your markdown vault files and enables semantic search via MCP tools.
+
+The installer builds and deploys it automatically. To enable it, add the MCP config to your workspace `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "node",
+      "args": ["/Users/YOU/.claude/mcp-servers/memory-server/dist/index.js"],
+      "env": {
+        "MEMORY_DB_PATH": "/Users/YOU/.claude/memory-index",
+        "MEMORY_VAULT_PATHS": "/Users/YOU/.claude/memory,/Users/YOU/Documents/SecondBrain",
+        "MEMORY_LOG_PATH": "/Users/YOU/.claude/logs/memory-server.log"
+      }
+    }
+  }
+}
+```
+
+Replace `/Users/YOU` with your home directory. Set `MEMORY_VAULT_PATHS` to the directories you want indexed (comma-separated).
+
+See `mcp-servers/memory-server/README.md` for full documentation.
 
 ### Optional: SecondBrain
 
@@ -286,9 +313,11 @@ Two Claude Code hooks power the system:
     zoom-token.sh              # Zoom token auto-refresh
     zoom-setup-instructions.md # Zoom MCP server setup
     outlook-setup-instructions.md  # Outlook MCP setup
+    memory-consolidate.sh      # Memory consolidation cron wrapper
   hooks/
     post-to-discord.sh         # Stop hook (auto-post to Discord)
     notify-agent-done.sh       # macOS notification hook
+    session-memory.sh          # PostCompact hook (logs compaction events)
   dashboard/
     server.js                  # Express dashboard on port 7777
     package.json
@@ -302,12 +331,19 @@ Two Claude Code hooks power the system:
     zoom/
       config.json              # Zoom OAuth config
       token.json               # Zoom access/refresh tokens (auto-managed)
+  mcp-servers/
+    memory-server/             # Semantic memory with LanceDB + local embeddings
+      dist/index.js            # MCP server binary
+      dist/consolidate.js      # Consolidation script
+  memory-index/                # LanceDB vector data (auto-created)
   logs/
     health-check.log
     heartbeat.log
     morning-briefing.log
     git-check.log
     disk-check.log
+    memory-server.log
+    memory-consolidation.log
     launchd-agent.log
 ~/Library/LaunchAgents/
   com.claude.agent.plist       # Auto-start on login

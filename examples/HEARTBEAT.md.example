@@ -10,3 +10,4 @@ Only post to Discord when something actually needs attention or when an action w
 - [ ] **Disk usage**: Is disk usage above 75%? If so, alert.
 - [ ] **Agent sessions**: Are any project sessions (claude-*) crashed or stuck? Check with `tmux list-sessions`.
 - [ ] **Docker**: Is Docker running containers that are unhealthy or stopped unexpectedly? Check with `docker ps -a`.
+- [ ] **Memory MCP server**: Verify the memory MCP server binary exists at `~/.claude/mcp-servers/memory-server/dist/index.js`. Check that the consolidation cron is installed: `crontab -l 2>/dev/null | grep memory-consolidate`. If either is missing, alert.

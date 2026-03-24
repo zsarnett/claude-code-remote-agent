@@ -69,6 +69,31 @@ echo "Installing dashboard dependencies..."
 cd "$DASHBOARD_DIR" && npm install --production --silent
 cd "$SCRIPT_DIR"
 
+# Build and install Memory MCP server
+MEMORY_SRC="$SCRIPT_DIR/mcp-servers/memory-server"
+MEMORY_DEST="$CLAUDE_DIR/mcp-servers/memory-server"
+if [ -d "$MEMORY_SRC" ]; then
+  echo ""
+  echo "Building Memory MCP server..."
+  mkdir -p "$MEMORY_DEST/dist"
+  cd "$MEMORY_SRC"
+  npm install --silent
+  npm run build --silent 2>/dev/null || npm run build
+  cp -r dist/ "$MEMORY_DEST/dist/"
+  cp package.json "$MEMORY_DEST/"
+  rsync -a --quiet node_modules/ "$MEMORY_DEST/node_modules/" 2>/dev/null || cp -r node_modules/ "$MEMORY_DEST/node_modules/"
+  cp scripts/consolidate.sh "$BIN_DIR/memory-consolidate.sh"
+  chmod +x "$BIN_DIR/memory-consolidate.sh"
+  cp hooks/session-memory.sh "$HOOKS_DIR/session-memory.sh"
+  chmod +x "$HOOKS_DIR/session-memory.sh"
+  mkdir -p "$CLAUDE_DIR/memory-index"
+  cd "$SCRIPT_DIR"
+  echo "  Memory MCP server installed at $MEMORY_DEST"
+  echo "  Vector index directory: $CLAUDE_DIR/memory-index"
+else
+  echo "  Memory MCP server source not found, skipping..."
+fi
+
 # Make all scripts executable
 echo "Setting permissions..."
 chmod +x "$CLAUDE_DIR/start-agent.sh"
@@ -145,6 +170,7 @@ add_cron "0 21 * * *" "bash ~/.claude/bin/git-check.sh >> ~/.claude/logs/git-che
 add_cron "0 8 * * *" "bash ~/.claude/bin/disk-check.sh >> ~/.claude/logs/disk-check.log 2>&1" "Claude Agent - Daily disk usage check at 8am"
 add_cron "*/30 * * * *" "bash ~/.claude/bin/heartbeat.sh >> ~/.claude/logs/heartbeat.log 2>&1" "Claude Agent - Heartbeat every 30 minutes"
 add_cron "0 8 * * 1-5" "bash ~/.claude/bin/morning-briefing.sh >> ~/.claude/logs/morning-briefing.log 2>&1" "Claude Agent - Morning briefing weekdays at 8am"
+add_cron "*/30 * * * *" "/bin/bash ~/.claude/bin/memory-consolidate.sh >> ~/.claude/logs/memory-consolidation.log 2>&1" "Memory MCP - Consolidation every 30 minutes"
 
 echo "$NEW_CRON" | crontab -
 
@@ -170,7 +196,8 @@ echo "  6. Update discord-notify.sh with your hub channel ID"
 echo "  7. (Optional) Edit ~/.claude/channels/zoom/config.json for Zoom transcripts"
 echo "  8. (Optional) Set up Outlook MCP -- see bin/outlook-setup-instructions.md"
 echo "  9. (Optional) Customize ~/HEARTBEAT.md with your monitoring checks"
-echo " 10. Run: claude-agent  (to start the hub session)"
-echo " 11. Open http://localhost:7777 to see the dashboard"
+echo " 10. (Optional) Add Memory MCP to your workspace .mcp.json -- see mcp-servers/memory-server/README.md"
+echo " 11. Run: claude-agent  (to start the hub session)"
+echo " 12. Open http://localhost:7777 to see the dashboard"
 echo ""
 echo "See README.md for full setup guide."
