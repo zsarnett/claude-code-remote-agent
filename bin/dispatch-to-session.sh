@@ -26,20 +26,49 @@ fi
 
 # Create session if it doesn't exist
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+  # Inject Discord communication instructions into the project
+  DISCORD_INSTRUCTIONS="$HOME/Documents/ZacksWorkspace/agent-scripts/discord-session-instructions.md"
+  if [ -f "$DISCORD_INSTRUCTIONS" ]; then
+    mkdir -p "$PROJECT_DIR/.claude/rules"
+    cp "$DISCORD_INSTRUCTIONS" "$PROJECT_DIR/.claude/rules/discord.md"
+  fi
+
+  # Export DISCORD_CHANNEL_ID so it persists across restarts via agent-loop.
+  # Use tmux set-environment so child processes always inherit it.
   tmux new-session -d -s "$SESSION_NAME" -c "$PROJECT_DIR" \
-    "DISCORD_CHANNEL_ID=$CHANNEL_ID $CLAUDE_CMD"
+    "export DISCORD_CHANNEL_ID=$CHANNEL_ID; $CLAUDE_CMD"
+  tmux set-environment -t "$SESSION_NAME" DISCORD_CHANNEL_ID "$CHANNEL_ID"
   sleep 5
+fi
+
+# Auto-inject last checkpoint/handoff context from memory system
+# Only inject on new session creation (not for messages to existing sessions)
+WAKE_SCRIPT="$HOME/.claude/bin/memory-wake-inject.sh"
+CONTEXT=""
+if [ -x "$WAKE_SCRIPT" ]; then
+  CONTEXT=$("$WAKE_SCRIPT" "$NAME" 2>/dev/null)
+fi
+
+# Build the full message with optional context injection
+FULL_MESSAGE="$MESSAGE"
+if [ -n "$CONTEXT" ]; then
+  FULL_MESSAGE="$CONTEXT
+
+$MESSAGE"
 fi
 
 # Write message to temp file, flatten to single line, send via tmux
 # Using a temp file + tmux load-buffer + paste-buffer avoids all quoting issues
 MSG_FILE=$(mktemp /tmp/claude-msg-XXXXXX)
-echo "$MESSAGE" | tr '\n' ' ' | sed 's/  */ /g' > "$MSG_FILE"
+echo "$FULL_MESSAGE" | tr '\n' ' ' | sed 's/  */ /g' > "$MSG_FILE"
 
 # Load into tmux buffer and paste it into the session, then send Enter
 tmux load-buffer "$MSG_FILE"
 tmux paste-buffer -t "$SESSION_NAME"
-sleep 0.5
+sleep 1
+tmux send-keys -t "$SESSION_NAME" Enter
+sleep 0.3
+# Double-tap Enter in case the first one was absorbed by a UI element (e.g., image preview)
 tmux send-keys -t "$SESSION_NAME" Enter
 
 rm -f "$MSG_FILE"

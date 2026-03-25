@@ -1,10 +1,12 @@
 /**
  * Search implementation for the Memory MCP Server.
- * Vector search with post-retrieval filtering, time-decay scoring,
+ * Hybrid search: vector similarity + BM25 full-text search with RRF reranking.
+ * Also supports post-retrieval filtering, time-decay scoring,
  * and context profiles for different retrieval strategies.
  */
 
 import type { Table } from "@lancedb/lancedb";
+import { rerankers } from "@lancedb/lancedb";
 import type {
   SearchOptions,
   SearchResult,
@@ -67,6 +69,34 @@ const PROFILE_CONFIGS: Record<SearchProfile, ProfileConfig> = {
   },
 };
 
+/** Track whether FTS is available for this table. */
+let ftsAvailable: boolean | null = null;
+
+/**
+ * Check if the table has an FTS index on the text column.
+ */
+async function checkFtsAvailable(table: Table): Promise<boolean> {
+  if (ftsAvailable !== null) return ftsAvailable;
+
+  try {
+    const indices = await table.listIndices();
+    ftsAvailable = indices.some(
+      (idx) => idx.columns && idx.columns.includes("text")
+    );
+  } catch {
+    ftsAvailable = false;
+  }
+
+  return ftsAvailable;
+}
+
+/**
+ * Reset the FTS availability cache (call after index creation or table changes).
+ */
+export function resetFtsCache(): void {
+  ftsAvailable = null;
+}
+
 /**
  * Perform a vector similarity search against the memories table.
  * Returns the top results ranked by cosine similarity.
@@ -82,6 +112,44 @@ export async function vectorSearch(
     .toArray();
 
   return results as unknown as MemoryRecord[];
+}
+
+/**
+ * Perform a hybrid search: vector similarity + BM25 full-text search,
+ * fused with Reciprocal Rank Fusion (RRF).
+ *
+ * Falls back to vector-only search if FTS index is not available.
+ */
+export async function hybridSearch(
+  table: Table,
+  query: string,
+  queryVector: number[],
+  limit: number
+): Promise<MemoryRecord[]> {
+  const hasFts = await checkFtsAvailable(table);
+
+  if (!hasFts) {
+    // Fallback to vector-only search
+    return vectorSearch(table, queryVector, limit);
+  }
+
+  try {
+    const reranker = await rerankers.RRFReranker.create();
+
+    const results = await table
+      .search(queryVector)
+      .fullTextSearch(query, { columns: ["text"] })
+      .rerank(reranker)
+      .limit(limit)
+      .toArray();
+
+    return results as unknown as MemoryRecord[];
+  } catch (err) {
+    // If hybrid search fails for any reason, fall back to vector-only
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[search] Hybrid search failed, falling back to vector-only: ${msg}`);
+    return vectorSearch(table, queryVector, limit);
+  }
 }
 
 /**
@@ -192,16 +260,22 @@ function applyProfileBoost(
 }
 
 /**
- * Convert a raw MemoryRecord (with LanceDB distance score) into a SearchResult.
- * LanceDB returns a _distance field for vector search results.
+ * Convert a raw MemoryRecord (with LanceDB distance/relevance score) into a SearchResult.
+ * LanceDB returns _distance for vector search and _relevance_score for hybrid/FTS.
  */
 function toSearchResult(
-  record: MemoryRecord & { _distance?: number }
+  record: MemoryRecord & { _distance?: number; _relevance_score?: number }
 ): SearchResult {
-  // LanceDB _distance is L2 distance; convert to a 0-1 similarity score.
-  // Lower distance = higher similarity.
-  const distance = record._distance ?? 0;
-  const score = 1 / (1 + distance);
+  let score: number;
+
+  if (record._relevance_score !== undefined) {
+    // Hybrid/RRF search returns a relevance score (higher = better)
+    score = record._relevance_score;
+  } else {
+    // Vector-only: LanceDB _distance is L2 distance; convert to 0-1 similarity
+    const distance = record._distance ?? 0;
+    score = 1 / (1 + distance);
+  }
 
   return {
     id: record.id,
@@ -218,7 +292,7 @@ function toSearchResult(
 }
 
 /**
- * Main search function. Embeds the query, performs vector search,
+ * Main search function. Embeds the query, performs hybrid search (vector + BM25),
  * applies filters, applies profile boosting, applies decay scoring,
  * and returns scored results.
  */
@@ -234,7 +308,15 @@ export async function search(
   const fetchLimit = limit * profileConfig.fetchMultiplier;
 
   const queryVector = await embed(options.query);
-  const rawResults = await vectorSearch(table, queryVector, fetchLimit);
+
+  // Use hybrid search (vector + BM25 + RRF) when available
+  const rawResults = await hybridSearch(
+    table,
+    options.query,
+    queryVector,
+    fetchLimit
+  );
+
   const filtered = applyFilters(rawResults, options, profileConfig);
   const scored = filtered.map(toSearchResult);
 

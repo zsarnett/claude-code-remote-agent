@@ -17,8 +17,9 @@ import {
   ensureTable,
   addRecords,
   tableExists,
+  ensureFtsIndex,
 } from "./db.js";
-import { search } from "./search.js";
+import { search, resetFtsCache } from "./search.js";
 import { loadConfig } from "./config.js";
 import { syncVault, getSyncManifest, clearManifest } from "./sync.js";
 import { startWatcher, stopWatcher, isWatcherActive } from "./watcher.js";
@@ -1501,10 +1502,12 @@ server.tool(
           config.excludePatterns
         );
 
-        // Re-open the table after sync
+        // Re-open the table after sync and rebuild FTS index
         const exists = await tableExists(db, config.tableName);
         if (exists) {
           memoriesTable = await db.openTable(config.tableName);
+          await ensureFtsIndex(memoriesTable);
+          resetFtsCache();
         }
 
         return {
@@ -1580,6 +1583,14 @@ async function main(): Promise<void> {
         console.error(
           `[memory-mcp] Initial sync complete: ${stats.total} files indexed in ${stats.duration_ms}ms.`
         );
+
+        // Create FTS index on text column for hybrid search
+        // Must happen after sync so the table exists with data
+        const syncedTable = await getTable();
+        if (syncedTable) {
+          await ensureFtsIndex(syncedTable);
+          resetFtsCache();
+        }
 
         // Start file watcher after initial sync
         startWatcher(config, db, config.tableName);

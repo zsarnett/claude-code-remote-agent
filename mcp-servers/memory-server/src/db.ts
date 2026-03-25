@@ -4,6 +4,7 @@
  */
 
 import * as lancedb from "@lancedb/lancedb";
+import { Index } from "@lancedb/lancedb";
 import type { Table } from "@lancedb/lancedb";
 import type { MemoryRecord } from "./types.js";
 
@@ -94,6 +95,32 @@ export async function tableExists(
 ): Promise<boolean> {
   const tableNames = await db.tableNames();
   return tableNames.includes(tableName);
+}
+
+/**
+ * Ensure the FTS index exists on the text column.
+ * Safe to call multiple times -- checks existing indices first.
+ */
+export async function ensureFtsIndex(table: Table): Promise<void> {
+  try {
+    const indices = await table.listIndices();
+    const hasFts = indices.some(
+      (idx) => idx.columns && idx.columns.includes("text")
+    );
+    if (hasFts) {
+      return;
+    }
+
+    console.error("[db] Creating FTS index on 'text' column...");
+    await table.createIndex("text", {
+      config: Index.fts(),
+    });
+    console.error("[db] FTS index created.");
+  } catch (err) {
+    // FTS index creation may fail on very small tables or if already exists
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[db] FTS index creation skipped: ${msg}`);
+  }
 }
 
 /**
