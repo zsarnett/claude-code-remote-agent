@@ -33,8 +33,11 @@ import {
   readObservations,
   filterObservations,
   getObservationsPath,
+  pruneObservations,
 } from "./observations.js";
 import type { ObservationPriority } from "./observations.js";
+import { extractObservations } from "./extractor.js";
+import type { SearchProfile } from "./types.js";
 import type { MemoryRecord } from "./types.js";
 import type { Connection, Table } from "@lancedb/lancedb";
 
@@ -144,7 +147,7 @@ const server = new McpServer({
 
 server.tool(
   "memory_search",
-  "Search semantic memory for relevant memories. Returns ranked results based on vector similarity to the query.",
+  "Search semantic memory for relevant memories. Returns ranked results based on vector similarity. Supports context profiles: 'planning' (boosts strategic/decisions, wide time window), 'incident' (boosts blockers/errors, narrows to 48h), 'handoff' (boosts checkpoints/decisions, last 7 days), 'default' (no adjustments).",
   {
     query: z.string().describe("The search query text"),
     category: z
@@ -167,6 +170,13 @@ server.tool(
       .optional()
       .default(10)
       .describe("Maximum number of results (default 10)"),
+    profile: z
+      .enum(["default", "planning", "incident", "handoff"])
+      .optional()
+      .default("default")
+      .describe(
+        "Context profile: planning (boost strategic context), incident (boost recent blockers/errors, 48h window), handoff (boost checkpoints/decisions, 7d window), default (no adjustments)"
+      ),
   },
   async (args) => {
     try {
@@ -192,6 +202,7 @@ server.tool(
         tags: args.tags,
         source: args.source,
         limit: args.limit,
+        profile: args.profile as SearchProfile,
       });
 
       return {
@@ -1209,6 +1220,247 @@ server.tool(
           {
             type: "text" as const,
             text: JSON.stringify({ error: errorMessage, stored: false }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_extract
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_extract",
+  "Auto-extract observations from free text using rule-based pattern matching. Scans text for decisions, blockers, preferences, learnings, architecture notes, TODOs, patterns, and completions. Each extraction is stored as an observation with auto-assigned priority and importance. Use this after compaction summaries or session reviews to capture key points.",
+  {
+    text: z
+      .string()
+      .describe(
+        "Free text to analyze (e.g., session summary, compaction summary, meeting notes)"
+      ),
+    session: z
+      .string()
+      .optional()
+      .describe("Session name to tag extracted observations with"),
+    dry_run: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "If true, returns what would be extracted without storing anything"
+      ),
+  },
+  async (args) => {
+    try {
+      const extracted = extractObservations(args.text);
+
+      if (extracted.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                extracted: 0,
+                observations: [],
+                message: "No notable patterns found in the provided text.",
+              }),
+            },
+          ],
+        };
+      }
+
+      if (args.dry_run) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                dry_run: true,
+                extracted: extracted.length,
+                observations: extracted.map((e) => ({
+                  text: e.text,
+                  priority: e.priority,
+                  importance: e.importance,
+                  rule: e.rule,
+                })),
+              }),
+            },
+          ],
+        };
+      }
+
+      // Store each extracted observation
+      const storedIds: string[] = [];
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+
+      for (const obs of extracted) {
+        // Write to flat file
+        await appendObservation({
+          timestamp,
+          priority: obs.priority,
+          text: obs.text,
+          session: args.session,
+        });
+
+        // Index in LanceDB
+        const now = Date.now();
+        const decayMap: Record<string, string> = {
+          red: "permanent",
+          yellow: "14d",
+          green: "7d",
+        };
+
+        const vector = await embed(obs.text);
+        const record: MemoryRecord = {
+          id: crypto.randomUUID(),
+          text: obs.text,
+          vector,
+          source: "agent",
+          source_path: getObservationsPath(),
+          category: "episodic",
+          tags: `observation, ${obs.priority}, extracted, ${obs.rule}`,
+          importance: obs.importance,
+          access_count: 0,
+          created_at: now,
+          updated_at: now,
+          last_accessed: now,
+          file_hash: "",
+          metadata: JSON.stringify({
+            type: "observation",
+            priority: obs.priority,
+            decay: decayMap[obs.priority],
+            session: args.session ?? "",
+            timestamp,
+            extraction_rule: obs.rule,
+          }),
+        };
+
+        const table = await getTable();
+        if (table) {
+          await addRecords(table, [record]);
+        } else {
+          await getOrCreateTableWithRecord(record);
+        }
+
+        storedIds.push(record.id);
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              extracted: extracted.length,
+              stored_ids: storedIds,
+              observations: extracted.map((e) => ({
+                text: e.text,
+                priority: e.priority,
+                importance: e.importance,
+                rule: e.rule,
+              })),
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_extract] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage, extracted: 0 }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: memory_prune_observations
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "memory_prune_observations",
+  "Prune expired observations based on their priority decay thresholds. Red observations are never pruned (kept until manually resolved). Yellow observations are pruned after ~14 days. Green observations are pruned after ~7 days. Rewrites the observations file with only surviving entries.",
+  {
+    dry_run: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("If true, reports what would be pruned without actually removing anything"),
+  },
+  async (args) => {
+    try {
+      if (args.dry_run) {
+        // Simulate pruning without writing
+        const allObs = await readObservations();
+        const now = Date.now();
+        const decayHours: Record<string, number | null> = {
+          red: null,
+          yellow: 14 * 24,
+          green: 7 * 24,
+        };
+        let prunedCount = 0;
+        const prunedTexts: string[] = [];
+
+        for (const obs of allObs) {
+          const maxAge = decayHours[obs.priority];
+          if (maxAge === null) continue;
+
+          const obsTime = new Date(obs.timestamp).getTime();
+          const ageHours = (now - obsTime) / (1000 * 60 * 60);
+
+          if (ageHours > maxAge) {
+            prunedCount++;
+            prunedTexts.push(`[${obs.priority}] ${obs.text}`);
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                dry_run: true,
+                would_prune: prunedCount,
+                would_keep: allObs.length - prunedCount,
+                expired: prunedTexts,
+              }),
+            },
+          ],
+        };
+      }
+
+      const result = await pruneObservations();
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              pruned: result.pruned,
+              kept: result.kept,
+              removed: result.prunedTexts,
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(`[memory_prune_observations] Error: ${errorMessage}`);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: errorMessage }),
           },
         ],
         isError: true,

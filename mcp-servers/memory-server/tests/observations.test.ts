@@ -3,8 +3,14 @@ import {
   parseObservations,
   formatObservation,
   filterObservations,
+  pruneObservations,
+  appendObservation,
+  readObservations,
+  getObservationsPath,
 } from "../src/observations.js";
 import type { Observation } from "../src/observations.js";
+import { writeFile, unlink, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 
 describe("observations", () => {
   describe("parseObservations", () => {
@@ -134,6 +140,124 @@ describe("observations", () => {
         session: "hub",
       });
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe("pruneObservations", () => {
+    const testPath = getObservationsPath();
+
+    // Helper to write test observations directly
+    async function writeTestObservations(obs: Observation[]) {
+      await mkdir(dirname(testPath), { recursive: true });
+      const header =
+        "# Observations\n\nPriority: red = important/keep until resolved, yellow = ~14 days, green = ~7 days\n\n";
+      const lines = obs.map(formatObservation).join("\n");
+      await writeFile(testPath, header + lines + "\n", "utf-8");
+    }
+
+    // Use a fixed "now" for deterministic tests
+    const now = new Date("2026-03-24T12:00:00Z").getTime();
+
+    it("should keep red observations regardless of age", async () => {
+      const obs: Observation[] = [
+        {
+          timestamp: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days old
+          priority: "red",
+          text: "Critical bug in auth",
+        },
+      ];
+      await writeTestObservations(obs);
+
+      const result = await pruneObservations(now);
+      expect(result.pruned).toBe(0);
+      expect(result.kept).toBe(1);
+    });
+
+    it("should prune green observations older than 7 days", async () => {
+      const obs: Observation[] = [
+        {
+          timestamp: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days old
+          priority: "green",
+          text: "Old green note",
+        },
+        {
+          timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day old
+          priority: "green",
+          text: "Recent green note",
+        },
+      ];
+      await writeTestObservations(obs);
+
+      const result = await pruneObservations(now);
+      expect(result.pruned).toBe(1);
+      expect(result.kept).toBe(1);
+      expect(result.prunedTexts[0]).toContain("Old green note");
+    });
+
+    it("should prune yellow observations older than 14 days", async () => {
+      const obs: Observation[] = [
+        {
+          timestamp: new Date(now - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days old
+          priority: "yellow",
+          text: "Old yellow note",
+        },
+        {
+          timestamp: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days old
+          priority: "yellow",
+          text: "Recent yellow note",
+        },
+      ];
+      await writeTestObservations(obs);
+
+      const result = await pruneObservations(now);
+      expect(result.pruned).toBe(1);
+      expect(result.kept).toBe(1);
+      expect(result.prunedTexts[0]).toContain("Old yellow note");
+    });
+
+    it("should handle mixed priorities correctly", async () => {
+      const obs: Observation[] = [
+        {
+          timestamp: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: "red",
+          text: "Ancient red -- kept",
+        },
+        {
+          timestamp: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: "yellow",
+          text: "Old yellow -- pruned",
+        },
+        {
+          timestamp: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: "green",
+          text: "Old green -- pruned",
+        },
+        {
+          timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: "green",
+          text: "Fresh green -- kept",
+        },
+      ];
+      await writeTestObservations(obs);
+
+      const result = await pruneObservations(now);
+      expect(result.pruned).toBe(2);
+      expect(result.kept).toBe(2);
+    });
+
+    it("should not rewrite file if nothing to prune", async () => {
+      const obs: Observation[] = [
+        {
+          timestamp: new Date(now - 1 * 60 * 60 * 1000).toISOString(), // 1 hour old
+          priority: "green",
+          text: "Very fresh green",
+        },
+      ];
+      await writeTestObservations(obs);
+
+      const result = await pruneObservations(now);
+      expect(result.pruned).toBe(0);
+      expect(result.kept).toBe(1);
     });
   });
 });

@@ -34,6 +34,9 @@ export interface MemoryRecord {
   metadata: string;
 }
 
+/** Context profile for search -- adjusts retrieval strategy. */
+export type SearchProfile = "default" | "planning" | "incident" | "handoff";
+
 /** Options for searching memories. */
 export interface SearchOptions {
   /** The search query text */
@@ -46,6 +49,8 @@ export interface SearchOptions {
   source?: "vault" | "agent";
   /** Maximum number of results to return */
   limit?: number;
+  /** Context profile that adjusts retrieval behavior */
+  profile?: SearchProfile;
 }
 
 /** A single search result returned to the caller. */

@@ -48,7 +48,7 @@ export function parseObservations(content: string): Observation[] {
 
     // Pattern: - [TIMESTAMP] [PRIORITY] TEXT {session: NAME}
     const match = trimmed.match(
-      /^- \[(\d{4}-\d{2}-\d{2}T[\d:]+Z?)\]\s+\[(red|yellow|green)\]\s+(.+)$/
+      /^- \[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]\s+\[(red|yellow|green)\]\s+(.+)$/
     );
     if (!match) continue;
 
@@ -148,4 +148,77 @@ export function filterObservations(
   }
 
   return filtered;
+}
+
+/** Decay thresholds in hours for each priority level. */
+const OBSERVATION_DECAY_HOURS: Record<ObservationPriority, number | null> = {
+  red: null, // Never auto-prune -- keep until manually resolved
+  yellow: 14 * 24, // ~14 days
+  green: 7 * 24, // ~7 days
+};
+
+/**
+ * Result of a prune operation.
+ */
+export interface PruneResult {
+  /** Number of observations removed */
+  pruned: number;
+  /** Number of observations kept */
+  kept: number;
+  /** The pruned observation texts (for reporting) */
+  prunedTexts: string[];
+}
+
+/**
+ * Prune expired observations from the flat file based on decay thresholds.
+ * - red: never pruned (keep until manually resolved)
+ * - yellow: pruned after ~14 days
+ * - green: pruned after ~7 days
+ *
+ * Rewrites the observations file with only the surviving entries.
+ * Returns stats about what was pruned.
+ */
+export async function pruneObservations(
+  now?: number
+): Promise<PruneResult> {
+  const currentTime = now ?? Date.now();
+  const allObs = await readObservations();
+
+  const kept: Observation[] = [];
+  const pruned: Observation[] = [];
+
+  for (const obs of allObs) {
+    const maxAge = OBSERVATION_DECAY_HOURS[obs.priority];
+
+    // Red observations never decay
+    if (maxAge === null) {
+      kept.push(obs);
+      continue;
+    }
+
+    const obsTime = new Date(obs.timestamp).getTime();
+    const ageHours = (currentTime - obsTime) / (1000 * 60 * 60);
+
+    if (ageHours > maxAge) {
+      pruned.push(obs);
+    } else {
+      kept.push(obs);
+    }
+  }
+
+  // Rewrite the file with surviving observations only
+  if (pruned.length > 0) {
+    const filePath = getObservationsPath();
+    const header =
+      "# Observations\n\nPriority: red = important/keep until resolved, yellow = ~14 days, green = ~7 days\n\n";
+    const lines = kept.map(formatObservation).join("\n");
+    const content = header + (lines ? lines + "\n" : "");
+    await writeFile(filePath, content, "utf-8");
+  }
+
+  return {
+    pruned: pruned.length,
+    kept: kept.length,
+    prunedTexts: pruned.map((o) => `[${o.priority}] ${o.text}`),
+  };
 }

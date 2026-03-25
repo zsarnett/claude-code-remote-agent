@@ -2,10 +2,11 @@
  * Background consolidation script for the Memory MCP Server.
  * Runs via cron (standalone, not part of the MCP server).
  *
- * Three passes:
+ * Four passes:
  * 1. Decay -- archive memories with strength < 0.1 (no LLM)
  * 2. Dedup -- find near-duplicate agent memories and merge (uses claude -p)
  * 3. Consolidation -- synthesize related agent memories into insights (uses claude -p)
+ * 4. Observation pruning -- remove expired green (>7d) and yellow (>14d) observations
  *
  * Usage:
  *   node dist/consolidate.js [--dry-run] [--verbose]
@@ -19,6 +20,7 @@ import type { Table } from "@lancedb/lancedb";
 import type { MemoryRecord } from "../src/types.js";
 import { calculateDecayScore } from "../src/decay.js";
 import { embed } from "../src/embedder.js";
+import { pruneObservations } from "../src/observations.js";
 
 // ---------------------------------------------------------------------------
 // CLI flags
@@ -418,10 +420,41 @@ async function main(): Promise<void> {
   const dedupMerged = await passDedup(table);
   const consolidations = await passConsolidate(table);
 
+  // Pass 4: Observation pruning (no LLM needed)
+  log("Pass 4: Observation pruning -- removing expired observations...");
+  let observationsPruned = 0;
+  if (DRY_RUN) {
+    // Import and check what would be pruned without actually doing it
+    const { readObservations, filterObservations } = await import("../src/observations.js");
+    const allObs = await readObservations();
+    const now = Date.now();
+    const decayHours: Record<string, number | null> = { red: null, yellow: 14 * 24, green: 7 * 24 };
+    for (const obs of allObs) {
+      const maxAge = decayHours[obs.priority];
+      if (maxAge === null) continue;
+      const obsTime = new Date(obs.timestamp).getTime();
+      const ageHours = (now - obsTime) / (1000 * 60 * 60);
+      if (ageHours > maxAge) {
+        log(`  [dry-run] Would prune: [${obs.priority}] ${obs.text}`);
+        observationsPruned++;
+      }
+    }
+  } else {
+    const result = await pruneObservations();
+    observationsPruned = result.pruned;
+    if (result.pruned > 0) {
+      for (const text of result.prunedTexts) {
+        verbose(`  Pruned: ${text}`);
+      }
+    }
+  }
+  log(`Pass 4 complete: ${observationsPruned} observations ${DRY_RUN ? "would be" : ""} pruned.`);
+
   log("--- Summary ---");
   log(`  Decayed/archived: ${decayArchived}`);
   log(`  Duplicates merged: ${dedupMerged}`);
   log(`  Consolidations created: ${consolidations}`);
+  log(`  Observations pruned: ${observationsPruned}`);
   log("Done.");
 }
 
