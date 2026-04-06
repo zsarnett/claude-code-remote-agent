@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mcp.memory</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npx</string>
+    <string>-y</string>
+    <string>supergateway</string>
+    <string>--stdio</string>
+    <string>node /Users/YOUR_USER/.claude/mcp-servers/memory-server/dist/index.js</string>
+    <string>--port</string>
+    <string>8007</string>
+    <string>--healthEndpoint</string>
+    <string>/healthz</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/memory.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/memory.err</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>MEMORY_DB_PATH</key>
+    <string>/Users/YOUR_USER/.claude/memory-index</string>
+    <key>MEMORY_VAULT_PATHS</key>
+    <string>/Users/YOUR_USER/.claude/memory,/Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain</string>
+    <key>MEMORY_LOG_PATH</key>
+    <string>/Users/YOUR_USER/.claude/logs/memory-server.log</string>
+  </dict>
+</dict>
+</plist>

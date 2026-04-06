@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mcp.zoom-transcripts</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npx</string>
+    <string>-y</string>
+    <string>supergateway</string>
+    <string>--stdio</string>
+    <string>node /Users/YOUR_USER/.claude/mcp-servers/zoom_transcript_mcp/build/index.js</string>
+    <string>--port</string>
+    <string>8004</string>
+    <string>--healthEndpoint</string>
+    <string>/healthz</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/zoom-transcripts.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/zoom-transcripts.err</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>ZOOM_ACCOUNT_ID</key>
+    <string>YOUR_ZOOM_ACCOUNT_ID</string>
+    <key>ZOOM_CLIENT_ID</key>
+    <string>YOUR_ZOOM_CLIENT_ID</string>
+    <key>ZOOM_CLIENT_SECRET</key>
+    <string>YOUR_ZOOM_CLIENT_SECRET</string>
+    <key>ZOOM_USER_EMAIL</key>
+    <string>YOUR_EMAIL</string>
+    <key>TRANSCRIPTS_DIR</key>
+    <string>/Users/YOUR_USER/.claude/mcp-servers/zoom_transcript_mcp/transcripts</string>
+  </dict>
+</dict>
+</plist>

@@ -57,8 +57,8 @@ claude mcp add --scope user zoom-transcripts \
   -e ZOOM_ACCOUNT_ID=your-actual-account-id \
   -e ZOOM_CLIENT_ID=your-actual-client-id \
   -e ZOOM_CLIENT_SECRET=your-actual-client-secret \
-  -e TRANSCRIPTS_DIR=$HOME/.claude/mcp-servers/zoom_transcript_mcp/transcripts \
-  -- node $HOME/.claude/mcp-servers/zoom_transcript_mcp/build/index.js
+  -e TRANSCRIPTS_DIR=/Users/YOUR_USER/.claude/mcp-servers/zoom_transcript_mcp/transcripts \
+  -- node /Users/YOUR_USER/.claude/mcp-servers/zoom_transcript_mcp/build/index.js
 ```
 
 ## Notes

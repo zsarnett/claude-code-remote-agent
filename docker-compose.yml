@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: workstation-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: workstation
+      POSTGRES_USER: workstation
+      POSTGRES_PASSWORD: workstation
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+
+volumes:
+  pgdata:
+    driver: local

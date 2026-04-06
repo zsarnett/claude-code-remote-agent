@@ -94,7 +94,7 @@ For multi-domain synthesis, use an Opus subagent to produce the brief if the com
 Check SecondBrain for relevant prior work:
 
 ```bash
-grep -r "ai-strategy" /Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
+grep -r "ai-strategy" /Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
 ```
 
 If prior findings exist on the topic, include them in the specialist's prompt so it can build on existing work rather than starting from scratch.

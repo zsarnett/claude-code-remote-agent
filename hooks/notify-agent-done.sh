@@ -13,11 +13,11 @@ case "$event" in
     matcher=$(echo "$input" | jq -r '.notification_type // "unknown"')
     case "$matcher" in
       permission_prompt)
-        title="Needs Permission -- $folder"
+        title="Needs Permission — $folder"
         message="A tool in $folder is waiting for your approval."
         ;;
       elicitation_dialog)
-        title="Claude Has a Question -- $folder"
+        title="Claude Has a Question — $folder"
         message="Claude in $folder is asking you a question."
         ;;
       *)

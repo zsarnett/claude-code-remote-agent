@@ -71,6 +71,6 @@ case "${1:-}" in
     echo "  'Check Slack and forward important messages to Discord'"
     echo ""
     echo "Or use the --notify flag to forward a specific message:"
-    echo "  slack-bridge.sh --notify '#general' 'Alice' 'Hey, need your review'"
+    echo "  slack-bridge.sh --notify '#general' 'Alice' 'Hey Zack, need your review'"
     ;;
 esac

@@ -24,7 +24,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
 1. Read the request from the router (passed as your prompt)
 2. Check SecondBrain for relevant prior findings:
    ```bash
-   grep -r "ai-strategy" /Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
+   grep -r "ai-strategy" /Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
    ```
    Read any files tagged with `client-intel` or relevant verticals.
 3. If the request involves a specific client:
@@ -40,7 +40,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
    bash ~/.claude/bin/discord-notify.sh "your findings" "$CLIENT_INTEL_CHANNEL_ID"
    ```
 6. Save to SecondBrain:
-   - Path: `/Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_clientintel_<topic>.md`
+   - Path: `/Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_clientintel_<topic>.md`
    - Frontmatter: `type: project`, `status: active`, tags include `[ai-strategy, client-intel, <client-or-vertical>]`
 7. Return summary to the router in standard format.
 

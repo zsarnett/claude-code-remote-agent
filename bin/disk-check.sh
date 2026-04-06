@@ -1,7 +1,7 @@
 #!/bin/bash
 # Disk usage check. Alerts via Discord if disk usage exceeds threshold.
-# Intended for daily cron.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# Intended for daily cron.
 
 NOTIFY="$HOME/.claude/bin/discord-notify.sh"
 THRESHOLD=80  # percent

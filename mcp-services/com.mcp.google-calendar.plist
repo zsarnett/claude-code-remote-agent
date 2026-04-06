@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mcp.google-calendar</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npx</string>
+    <string>-y</string>
+    <string>supergateway</string>
+    <string>--stdio</string>
+    <string>npx @cocal/google-calendar-mcp</string>
+    <string>--port</string>
+    <string>8006</string>
+    <string>--healthEndpoint</string>
+    <string>/healthz</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/google-calendar.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/google-calendar.err</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>GOOGLE_OAUTH_CREDENTIALS</key>
+    <string>/Users/YOUR_USER/.claude/mcp-servers/google-calendar-mcp/gcp-oauth.keys.json</string>
+  </dict>
+</dict>
+</plist>

@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "slack-user": {
+      "type": "http",
+      "url": "http://localhost:8005/sse"
+    },
+    "google-calendar": {
+      "type": "http",
+      "url": "http://localhost:8006/sse"
+    },
+    "memory": {
+      "type": "http",
+      "url": "http://localhost:8007/sse"
+    },
+    "docker": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-docker"
+      ]
+    },
+    "aws-ecs": {
+      "command": "uvx",
+      "args": [
+        "awslabs.ecs-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "AWS_PROFILE": "aws-sales-poc",
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@ahmetkca/mcp-server-postgres"
+      ],
+      "env": {
+        "DATABASE_URL": ""
+      }
+    },
+    "stripe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@stripe/mcp",
+        "--api-key",
+        ""
+      ],
+      "env": {}
+    }
+  }
+}

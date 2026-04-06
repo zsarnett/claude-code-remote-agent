@@ -8,3 +8,5 @@ channels/slack/config.json
 channels/zoom/config.json
 channels/zoom/token.json
 package-lock.json
+*.zip
+db/migrations/.gitkeep

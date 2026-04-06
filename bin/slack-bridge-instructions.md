@@ -9,9 +9,9 @@ follow this procedure.
 - Config file: `~/.claude/channels/slack/config.json`
 - Discord notify script: `~/.claude/bin/discord-notify.sh`
 - Bridge helper script: `~/.claude/bin/slack-bridge.sh`
-- Slack user ID: `YOUR_SLACK_USER_ID`
-- Workspace: your-workspace (your-workspace.slack.com)
-- Discord #hub channel ID: `YOUR_HUB_CHANNEL_ID`
+- Zack's Slack user ID: `U0435SF1U4Q`
+- Workspace: gonymbl (gonymbl.slack.com)
+- Discord #hub channel ID: `1484594218323283989`
 
 ## Procedure: Full Bridge Check
 
@@ -22,14 +22,14 @@ urgent keywords, and forwarding rules.
 
 ### Step 2 -- Search for Mentions and DMs
 
-Use the Slack MCP tools to find messages relevant to you:
+Use the Slack MCP tools to find messages relevant to Zack:
 
 ```
 mcp__claude_ai_Slack__slack_search_public_and_private
-  query: "from:<anyone> <@YOUR_SLACK_USER_ID>"
+  query: "from:<anyone> <@U0435SF1U4Q>"
 ```
 
-This finds messages that mention you across all accessible channels.
+This finds messages that mention Zack across all accessible channels.
 Also check for DMs if the tools support it.
 
 ### Step 3 -- Check Each Monitored Channel
@@ -53,9 +53,9 @@ For each channel in `channels_to_monitor`:
 3. Apply filtering rules:
    - If `forward_all` is true: forward every message.
    - Otherwise, check each message for:
-     - Direct mentions of your user (`<@YOUR_SLACK_USER_ID>` or your name)
+     - Direct mentions of Zack (`<@U0435SF1U4Q>` or "zack"/"Zack")
      - Any of the `urgent_keywords` from config
-     - Threads you have participated in (if `always_forward.threads_zack_participated_in` is true)
+     - Threads Zack has participated in (if `always_forward.threads_zack_participated_in` is true)
 
 ### Step 4 -- Forward to Discord
 
@@ -97,7 +97,7 @@ When forwarding messages to Discord, use this format:
 
 Messages are categorized by urgency for prioritization:
 
-- **HIGH**: Direct mentions of you, DMs to you, messages in high-priority channels,
+- **HIGH**: Direct mentions of Zack, DMs to Zack, messages in high-priority channels,
   messages containing urgent keywords (urgent, asap, critical, emergency, blocking,
   outage, down, incident, p0, p1)
 - **MEDIUM**: Messages in medium-priority channels that match keyword filters

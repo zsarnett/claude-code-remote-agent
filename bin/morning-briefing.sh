@@ -4,9 +4,10 @@
 
 # PATH setup for cron environment
 export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+export HOME="${HOME:-/Users/YOUR_USER}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VAULT_ROOT="${SECOND_BRAIN_DIR:-$HOME/SecondBrain}"
+VAULT_ROOT="$HOME/Documents/ZacksWorkspace/SecondBrain"
 LOG_FILE="$HOME/.claude/logs/morning-briefing.log"
 
 log() {
@@ -16,7 +17,7 @@ log() {
 log "Starting morning briefing"
 
 # Build the briefing prompt
-PROMPT="You are generating a morning briefing. Do the following:
+PROMPT="You are generating a morning briefing for Zack. Do the following:
 
 1. Search the SecondBrain vault at $VAULT_ROOT for all files with 'status: active' in their frontmatter.
 2. Group results by folder: Projects, People, Ideas, Admin.

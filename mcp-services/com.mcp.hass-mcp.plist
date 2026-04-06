@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mcp.hass-mcp</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npx</string>
+    <string>-y</string>
+    <string>supergateway</string>
+    <string>--stdio</string>
+    <string>npx -y hass-mcp</string>
+    <string>--port</string>
+    <string>8002</string>
+    <string>--healthEndpoint</string>
+    <string>/healthz</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/hass-mcp.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USER/.mcp-services/logs/hass-mcp.err</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HASS_TOKEN</key>
+    <string>YOUR_HASS_TOKEN</string>
+    <key>HASS_URL</key>
+    <string>http://YOUR_HA_HOST:8123</string>
+  </dict>
+</dict>
+</plist>

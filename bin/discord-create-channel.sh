@@ -2,7 +2,7 @@
 # Creates a Discord text channel in the configured guild and registers it in the channel map.
 #
 # Usage: discord-create-channel.sh <channel-name> <project-dir>
-# Example: discord-create-channel.sh myproject /path/to/MyProject
+# Example: discord-create-channel.sh nymblpresent /Users/YOUR_USER/Documents/NYMBLPresent
 
 set -e
 
@@ -28,9 +28,9 @@ if [ -z "$GUILD_ID" ] || [ "$GUILD_ID" = "" ]; then
   exit 1
 fi
 
-# IDs for permissions -- update these after running install.sh
-BOT_ID="__BOT_USER_ID__"
-OWNER_ID="__YOUR_DISCORD_USER_ID__"
+# IDs for permissions
+BOT_ID="1484588834250293349"
+ZACK_ID="245593460403339264"
 EVERYONE_ROLE_ID="$GUILD_ID"  # @everyone role ID = guild ID
 
 # Build request body with private permissions by default
@@ -38,7 +38,7 @@ BODY=$(jq -n \
   --arg name "$CHANNEL_NAME" \
   --arg parent "$CATEGORY_ID" \
   --arg everyone "$EVERYONE_ROLE_ID" \
-  --arg owner "$OWNER_ID" \
+  --arg zack "$ZACK_ID" \
   --arg bot "$BOT_ID" \
   '{
     name: $name,
@@ -46,7 +46,7 @@ BODY=$(jq -n \
     parent_id: $parent,
     permission_overwrites: [
       {id: $everyone, type: 0, deny: "1024", allow: "0"},
-      {id: $owner, type: 1, deny: "0", allow: "1024"},
+      {id: $zack, type: 1, deny: "0", allow: "1024"},
       {id: $bot, type: 1, deny: "0", allow: "1024"}
     ]
   }')
@@ -70,8 +70,14 @@ jq --arg name "$CHANNEL_NAME" --arg id "$CHANNEL_ID" --arg dir "$PROJECT_DIR" \
   && mv "$MAP_FILE.tmp" "$MAP_FILE"
 
 # Register in access.json as a group channel
-jq --arg id "$CHANNEL_ID" --arg owner "$OWNER_ID" \
-  '.groups[$id] = {"requireMention": false, "allowFrom": [$owner]}' "$ACCESS_FILE" > "$ACCESS_FILE.tmp" \
+jq --arg id "$CHANNEL_ID" \
+  '.groups[$id] = {"requireMention": false, "allowFrom": ["245593460403339264"]}' "$ACCESS_FILE" > "$ACCESS_FILE.tmp" \
   && mv "$ACCESS_FILE.tmp" "$ACCESS_FILE"
+
+# Copy standard MCP config if project doesn't already have one
+STANDARD_MCP="$HOME/Documents/ZacksWorkspace/agent-scripts/standard-mcp.json"
+if [ ! -f "$PROJECT_DIR/.mcp.json" ] && [ -f "$STANDARD_MCP" ]; then
+  cp "$STANDARD_MCP" "$PROJECT_DIR/.mcp.json"
+fi
 
 echo "$CHANNEL_ID"

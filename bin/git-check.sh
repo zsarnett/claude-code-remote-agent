@@ -1,10 +1,10 @@
 #!/bin/bash
-# Checks all git repos in a directory for uncommitted changes or unpushed commits.
-# Sends a Discord summary to #hub. Intended for nightly cron.
+# Checks all git repos in Documents for uncommitted changes or unpushed commits.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# Sends a Discord summary to #hub. Intended for nightly cron.
 
 NOTIFY="$HOME/.claude/bin/discord-notify.sh"
-DOCS_DIR="${1:-$HOME/Documents}"  # Pass a custom directory or default to ~/Documents
+DOCS_DIR="$HOME/Documents"
 ISSUES=""
 
 for dir in "$DOCS_DIR"/*/; do

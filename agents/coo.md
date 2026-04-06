@@ -24,7 +24,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
 1. Read the request from the router (passed as your prompt)
 2. Check SecondBrain for relevant prior findings:
    ```bash
-   grep -r "ai-strategy" /Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
+   grep -r "ai-strategy" /Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
    ```
    Read any files tagged with `coo` or relevant to your topic.
 3. If the request involves ClickUp data, use ClickUp MCP tools to scan projects, tasks, and statuses
@@ -35,7 +35,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
    bash ~/.claude/bin/discord-notify.sh "your detailed findings" "$COO_CHANNEL_ID"
    ```
 7. Save findings to SecondBrain:
-   - Path: `/Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_coo_<topic>.md`
+   - Path: `/Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_coo_<topic>.md`
    - Frontmatter: `type: project`, `status: active`, tags include `[ai-strategy, coo, <topic-tags>]`
 8. Return your summary to the router in the standard format:
 

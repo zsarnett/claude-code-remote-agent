@@ -114,9 +114,9 @@ case "$ACTION" in
     echo "Usage: schedule.sh <timer|cron|list|cancel> [args...]"
     echo ""
     echo "Examples:"
-    echo "  schedule.sh timer 30m YOUR_CHANNEL_ID 'Reminder: check deploy status'"
-    echo "  schedule.sh timer 2h YOUR_CHANNEL_ID 'Time to review PRs'"
-    echo "  schedule.sh cron '0 9 * * *' YOUR_CHANNEL_ID 'Good morning! Check email and Slack.'"
+    echo "  schedule.sh timer 30m 1484594218323283989 'Reminder: check deploy status'"
+    echo "  schedule.sh timer 2h 1484594218323283989 'Time to review PRs'"
+    echo "  schedule.sh cron '0 9 * * *' 1484594218323283989 'Good morning! Check email and Slack.'"
     echo "  schedule.sh list"
     echo "  schedule.sh cancel 12345"
     ;;

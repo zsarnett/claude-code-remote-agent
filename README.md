@@ -6,41 +6,118 @@ Turn a Mac into a persistent, self-healing Claude Code workstation controlled re
 
 - **Discord as a control plane**: Send messages to Discord channels, Claude Code receives and acts on them
 - **Multi-project routing**: Each Discord channel maps to a project directory with its own isolated Claude Code session
+- **Multi-runtime support**: Route work to Claude Code, OpenAI Codex, or Google Gemini CLI per-request
+- **Council research**: Fan out the same question to Claude, Codex, and Gemini in parallel, then synthesize a unified report
 - **Self-healing**: Auto-restart on crash, health checks every 5 minutes, auto-start on boot
 - **Web dashboard**: Real-time status UI at `localhost:7777` showing sessions, system stats, heartbeat, SecondBrain, and logs
+- **Leadership intelligence team**: AI CSO, COO, CMO, and Client Intel specialists that research and report to dedicated audit channels
+- **Helper sessions**: Persistent sessions for SecondBrain, communications (email/Slack/Zoom), Home Assistant, and infrastructure
 - **Slack bridge**: Optional forwarding of Slack mentions/urgent messages to Discord
 - **Heartbeat system**: Periodic automated checks (git repos, disk, Docker, sessions) with Discord alerts
 - **Scheduler**: One-shot timers and recurring cron jobs for Discord reminders
-- **Persistent memory**: Semantic memory MCP server with LanceDB vector store, local embeddings, time decay, and background consolidation
+- **Task board**: PostgreSQL-backed task tracking with create/update/list scripts for coordinating multi-session work
+- **Persistent memory**: Semantic memory MCP server with vector store, local embeddings, time decay, and background consolidation
+- **MCP services**: LaunchAgent-managed MCP servers (memory, Slack, Zoom, Outlook, Home Assistant, Google Calendar, SSH)
 - **Zoom integration**: OAuth helpers and transcript access via MCP server
 - **Outlook/Teams integration**: Microsoft 365 email, calendar, tasks, and Teams via MCP
 - **SecondBrain integration**: Morning briefings, inbox processing, and knowledge vault queries
-- **Architect agent**: Upload a spec via Discord, get a design critique, phased plan, and auto-built app with Chrome E2E testing, user story validation, and screenshot-based design review
+- **Architect agent**: Upload a spec via Discord, get a design critique, phased plan, and auto-built app with Playwright E2E testing, user story validation, and screenshot-based design review
 - **Researcher agent**: Deep-dive research with parallel agent waves, rabbit hole recursion, and auto-published results to GitHub
 - **Monitoring**: Nightly git repo checks, disk usage alerts, crash notifications
 
 ## Architecture
 
 ```
-Discord #hub       --> Hub session (handles directly)
-Discord #project   --> dispatch-to-session.sh --> tmux claude-<project>
+Discord #hub       --> Hub session (pure router -- detects intent, dispatches)
+                         |
+                         +--> Project sessions:     claude-<name>, codex-<name>, gemini-<name>
+                         +--> Helper sessions:       secondbrain, comms, ha, infra
+                         +--> Specialized agents:    architect, researcher, leadership
+                         +--> Council research:      claude + codex + gemini in parallel --> synthesis
+                         |
+Discord #project   --> dispatch-to-session.sh --> tmux <runtime>-<project>
                                                     |
                                                     v
                                               discord-notify.sh --> Discord #project
 ```
 
-The **hub session** is an orchestrator. It receives Discord messages and either:
-- Handles them directly (system management, smart home, general tasks)
-- Dispatches them to a dedicated **project session** via tmux
+### Hub Session
 
-Each project session runs in its own tmux window with its own Claude Code context. When a project session finishes responding, a Stop hook automatically posts the response back to Discord.
+The **hub** is a pure router running the `hub` agent definition. It receives every Discord message and either:
+- Handles trivial commands inline (list sessions, spin up channels, schedule reminders)
+- Dispatches to a **project session** via `dispatch-to-session.sh`
+- Dispatches to a **helper session** (secondbrain, comms, ha, infra)
+- Dispatches to a **specialized agent** (architect, researcher, leadership)
+- Kicks off **council research** (multi-LLM parallel research)
+
+The hub never does project work itself.
+
+### Multi-Runtime Sessions
+
+Each project can have sessions from multiple runtimes simultaneously, sharing the same working directory and Discord channel:
+
+| Runtime | Session prefix | Mode | CLI |
+|---------|---------------|------|-----|
+| Claude Code | `claude-<name>` | `--dangerously-skip-permissions` | `claude` |
+| OpenAI Codex | `codex-<name>` | `--full-auto` | `codex` |
+| Google Gemini | `gemini-<name>` | `--yolo` | `gemini` |
+
+Dispatch with the runtime argument: `dispatch-to-session.sh <name> <dir> <channel> "<msg>" [agent] [runtime]`
+
+### Helper Sessions
+
+Persistent sessions that handle specific domains. They maintain context between messages:
+
+- **`secondbrain`** -- Knowledge vault operations (notes, queries, inbox, status updates)
+- **`comms`** -- Email (Outlook), Slack bridge, Zoom transcripts
+- **`ha`** -- Home Assistant / smart home control
+- **`infra`** -- Script fixes, hook edits, dashboard issues
+
+### Leadership Intelligence Team
+
+A structured AI leadership team with a router and specialist subagents:
+
+- **`#leadership`** channel receives requests, dispatches to specialists
+- **CSO** (Chief Strategy Officer) -- competitive intelligence, market positioning, AI opportunities
+- **COO** (Chief Operating Officer) -- project analysis, AI integration scoring, capacity planning
+- **CMO** (Chief Marketing Officer) -- thought leadership content, competitor content analysis
+- **Client Intel** -- client research, vertical trends, meeting prep, upsell opportunities
+
+Each specialist posts detailed findings to its own audit channel (`#cso`, `#coo`, `#cmo`, `#client-intel`), saves to SecondBrain, and returns a summary to the leadership router.
+
+### Council Research
+
+Fan out a question to Claude, Codex, and Gemini in parallel, then synthesize:
+
+```bash
+bash council-research.sh <channel-id> "<prompt>" [topic-name] [timeout-secs]
+```
+
+Creates 3 tmux sessions (`council-<topic>-claude`, `council-<topic>-gemini`, `council-<topic>-codex`), waits for all via `tmux wait-for` (zero-polling), runs Claude synthesis, saves to `research/<topic>/`, and posts results to Discord.
+
+### Specialized Agents
+
+Agent definitions live in `agents/` and are selected by the hub based on intent detection:
+
+- **Architect** (`agents/architect.md`): Full app lifecycle from spec to running code. Reads specs, critiques them, asks questions via Discord, produces a phased plan, waits for approval, then auto-builds using agent teams with Playwright E2E testing per phase.
+
+- **Researcher** (`agents/researcher.md`): Recursive deep research. Breaks a topic into branches, spawns parallel agents, synthesizes findings, scores rabbit holes, and recurses up to 3 waves. Pushes to GitHub and posts summary to Discord.
+
+- **Frontend Developer** (`agents/frontend-developer.md`): React/Vue/Angular component building, accessibility, state management, real-time features.
+
+- **UI Designer** (`agents/ui-designer.md`): Design systems, component specs, accessibility audits, developer handoff.
+
+- **QA Expert** (`agents/qa-expert.md`): Test strategy, automation, defect management, quality metrics.
+
+- **Slack Synthesizer** (`agents/slack-synthesizer.md`): Processes staged Slack content into structured knowledge base documents.
 
 ## Prerequisites
 
 - **macOS** (for LaunchAgents; Linux users can adapt with systemd)
 - **tmux** (`brew install tmux`)
 - **jq** (`brew install jq`)
-- **Node.js** (for the dashboard)
+- **Node.js** (for the dashboard and MCP servers)
+- **PostgreSQL** (via Docker -- see `docker-compose.yml`)
 - **Claude Code CLI** (`npm install -g @anthropic-ai/claude-code`)
 - A **Discord bot** with message content intent enabled
 
@@ -51,7 +128,7 @@ Each project session runs in its own tmux window with its own Claude Code contex
 3. Go to **Bot** tab, click "Add Bot"
 4. Enable **Message Content Intent** under Privileged Gateway Intents
 5. Copy the bot token
-6. Go to **OAuth2 > URL Generator**, select `bot` scope with permissions: `Send Messages`, `Read Message History`, `Manage Channels`
+6. Go to **OAuth2 > URL Generator**, select `bot` scope with permissions: `Send Messages`, `Read Message History`, `Manage Channels`, `Add Reactions`
 7. Use the generated URL to invite the bot to your server
 8. Create a category in your Discord server (e.g., "Claude Agent") for the channels
 9. Create a `#hub` channel in that category
@@ -59,19 +136,22 @@ Each project session runs in its own tmux window with its own Claude Code contex
 ## Installation
 
 ```bash
-git clone https://github.com/youruser/claude-code-remote-agent.git
+git clone https://github.com/zsarnett/claude-code-remote-agent.git
 cd claude-code-remote-agent
 bash install.sh
 ```
 
 The install script:
-- Copies all scripts to `~/.claude/bin/`
+- Symlinks all scripts to `~/.claude/bin/`
 - Sets up hooks in `~/.claude/hooks/`
+- Copies agent definitions to `~/.claude/agents/`
 - Installs the dashboard
 - Creates example config files (Discord, Slack, Zoom)
 - Copies a HEARTBEAT.md template to your home directory
 - Sets up cron jobs for health checks, git reports, disk monitoring, heartbeat, and morning briefings
 - Installs a LaunchAgent for auto-start on login
+- Starts the PostgreSQL database via Docker (for task board)
+- Initializes the database schema
 
 ## Configuration
 
@@ -132,31 +212,24 @@ Use `bin/zoom-auth.sh` to complete the OAuth flow, and `bin/zoom-token.sh` to ge
 
 See `bin/outlook-setup-instructions.md` for Azure app registration and MCP server setup. Provides email, calendar, contacts, tasks, and Teams integration.
 
+### Optional: MCP Services (LaunchAgent-managed)
+
+The `mcp-services/` directory contains LaunchAgent plist templates for long-running MCP servers:
+
+- `com.mcp.memory.plist` -- Semantic memory server
+- `com.mcp.slack-user.plist` -- Slack MCP
+- `com.mcp.zoom-transcripts.plist` -- Zoom transcript MCP
+- `com.mcp.outlook-mcp.plist` -- Outlook/Teams MCP
+- `com.mcp.hass-mcp.plist` -- Home Assistant MCP
+- `com.mcp.google-calendar.plist` -- Google Calendar MCP
+- `com.mcp.ssh-manager.plist` -- SSH connection manager
+
+Install all: `bash mcp-services/install-mcp-services.sh`
+Uninstall: `bash mcp-services/uninstall-mcp-services.sh`
+
 ### Optional: Memory MCP Server
 
-The Memory MCP server provides persistent semantic memory across Claude Code sessions. It auto-indexes your markdown vault files and enables semantic search via MCP tools.
-
-The installer builds and deploys it automatically. To enable it, add the MCP config to your workspace `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "node",
-      "args": ["/Users/YOU/.claude/mcp-servers/memory-server/dist/index.js"],
-      "env": {
-        "MEMORY_DB_PATH": "/Users/YOU/.claude/memory-index",
-        "MEMORY_VAULT_PATHS": "/Users/YOU/.claude/memory,/Users/YOU/Documents/SecondBrain",
-        "MEMORY_LOG_PATH": "/Users/YOU/.claude/logs/memory-server.log"
-      }
-    }
-  }
-}
-```
-
-Replace `/Users/YOU` with your home directory. Set `MEMORY_VAULT_PATHS` to the directories you want indexed (comma-separated).
-
-See `mcp-servers/memory-server/README.md` for full documentation.
+The Memory MCP server provides persistent semantic memory across Claude Code sessions. See `mcp-servers/memory-server/README.md` for full documentation.
 
 ### Optional: SecondBrain
 
@@ -168,6 +241,10 @@ If you use a markdown-based knowledge vault (SecondBrain):
 ### Optional: Heartbeat
 
 Edit `~/HEARTBEAT.md` (copied during install) to define your periodic checks. The heartbeat runs every 30 minutes and only posts to Discord when something needs attention. See `examples/HEARTBEAT.md.example` for the template.
+
+### Optional: Settings
+
+See `examples/settings.json` for a reference Claude Code settings file with hooks, plugins, and status line configuration.
 
 ## Usage
 
@@ -228,6 +305,20 @@ bash ~/.claude/bin/schedule.sh list
 bash ~/.claude/bin/schedule.sh cancel <pid>
 ```
 
+### Task board
+
+```bash
+# Create a task
+bash ~/.claude/bin/task-create.sh "Implement auth" --description "Add JWT auth" --session myproject
+
+# Update task status
+bash ~/.claude/bin/task-update.sh <task-id> --status in_progress
+
+# List tasks
+bash ~/.claude/bin/task-list.sh
+bash ~/.claude/bin/task-list.sh --session myproject --status pending
+```
+
 ### Dashboard
 
 Open `http://localhost:7777` to see:
@@ -254,21 +345,17 @@ Open `http://localhost:7777` to see:
 
 The dispatch script (`dispatch-to-session.sh`) uses tmux's `load-buffer` + `paste-buffer` approach instead of `send-keys` to avoid quoting issues with complex messages. Messages are written to a temp file, loaded into tmux's buffer, pasted into the target session, and then Enter is sent.
 
-An optional 5th argument specifies an agent type (e.g., `architect`, `researcher`). When provided, the session starts with `claude --agent <name>` instead of bare `claude`.
+Arguments: `dispatch-to-session.sh <name> <dir> <channel-id> <message> [agent] [runtime]`
 
-### Specialized Agents
-
-Agent definitions live in `~/.claude/agents/` and are selected automatically by the hub based on intent detection:
-
-- **Architect** (`agents/architect.md`): Full app lifecycle from spec to running code. Reads specs, critiques them, asks questions via Discord, produces a phased plan, waits for approval, then auto-builds all phases using agent teams. Each phase gets Docker + DB seeding, Chrome E2E testing, and a commit. After all phases: validates every user story in Chrome, screenshots every page, and runs a design critique via `/frontend-design`.
-
-- **Researcher** (`agents/researcher.md`): Recursive deep research. Breaks a topic into branches, spawns parallel agents per branch, synthesizes findings, scores rabbit holes, and recurses up to 3 waves. All output goes into a shared `research/` repo with per-topic subfolders. Pushes to GitHub and posts the summary + link to Discord. Kills its own session when done.
+- **agent**: Optional agent definition name (e.g., `architect`, `researcher`, `leadership`)
+- **runtime**: Optional runtime (`claude` default, `codex`, or `gemini`)
 
 ### Self-Healing
 
 - **Crash recovery**: `agent-loop.sh` wraps each session and auto-restarts on crash (up to 5 rapid crashes in 60 seconds)
 - **External monitor**: `health-check.sh` runs via cron every 5 minutes and restarts the hub if it's down
 - **Boot recovery**: LaunchAgent plist starts the hub automatically on login
+- **Orphan cleanup**: `stop-cleanup-orphans.sh` runs on Stop hook to clean up orphaned tmux sessions
 - **Discord alerts**: All crash/restart events are posted to Discord `#hub`
 
 ### Heartbeat
@@ -277,28 +364,59 @@ The heartbeat system (`heartbeat.sh`) runs every 30 minutes and reads a `HEARTBE
 
 ### Hooks
 
-Two Claude Code hooks power the system:
+Claude Code hooks power the system:
 
-- **`post-to-discord.sh`** (Stop hook): Posts Claude's response to the correct Discord channel. Only fires for project sessions (when `DISCORD_CHANNEL_ID` env var is set).
-- **`notify-agent-done.sh`** (Notification hook): Sends macOS notifications when Claude needs permission or has a question.
+- **`post-to-discord.sh`** (Stop hook): Posts Claude's response to the correct Discord channel
+- **`memory-on-stop.sh`** (Stop hook): Extracts and persists session memory on stop
+- **`memory-on-compact.sh`** (PostCompact hook): Extracts memory when context is compacted
+- **`context-report-on-stop.sh`** (Stop hook): Generates context continuity report for session resumption
+- **`stop-cleanup-orphans.sh`** (Stop hook): Cleans up orphaned tmux sessions
+- **`notify-agent-done.sh`** (Notification hook): Sends macOS notifications when Claude needs permission or has a question
+
+### Constitution
+
+The `constitution.md` defines immutable principles that apply to all sessions:
+- Never post to external services without explicit approval
+- Never auto-resolve merge conflicts
+- Never delete user data without approval
+- Never use mock data or placeholders without approval
+- Always test user-facing features with Playwright before reporting done
+- Always sync with git before starting work
 
 ## File Structure
 
 ```
-~/.claude/
-  start-agent.sh              # Session launcher
+claude-code-remote-agent/
+  start-agent.sh              # Session launcher (aliased to claude-agent)
+  install.sh                  # One-command installer
+  constitution.md             # Immutable operating principles
+  quality-rules.md            # Quality standards (no mocks, testing required)
+  docker-compose.yml          # PostgreSQL for task board
   project-agent-instructions.md
   agents/
-    architect.md               # Spec-to-app agent with Chrome testing
+    hub.md                     # Pure router agent definition
+    architect.md               # Spec-to-app agent with Playwright testing
     researcher.md              # Deep research with parallel agents
-  timers/                     # Active timer state files
+    leadership.md              # Leadership team router
+    cso.md                     # Chief Strategy Officer specialist
+    coo.md                     # Chief Operating Officer specialist
+    cmo.md                     # Chief Marketing Officer specialist
+    client-intel.md            # Client intelligence specialist
+    secondbrain.md             # Knowledge vault operations
+    comms.md                   # Communications (email/Slack/Zoom)
+    frontend-developer.md      # Frontend implementation
+    ui-designer.md             # UI/UX design
+    qa-expert.md               # Quality assurance
+    slack-synthesizer.md       # Slack content -> knowledge base
   bin/
-    agent-loop.sh              # Auto-restart wrapper
-    dispatch-to-session.sh     # Message router (tmux load-buffer approach)
-    discord-notify.sh          # Discord API poster
+    agent-loop.sh              # Auto-restart wrapper with crash detection
+    dispatch-to-session.sh     # Message router (supports claude/codex/gemini)
+    discord-notify.sh          # Discord API poster (with chunking for long messages)
     discord-create-channel.sh  # Channel provisioner
-    kill-project-session.sh    # Session terminator
-    list-project-sessions.sh   # Session lister
+    discord-react.sh           # Add/remove Discord reactions
+    discord-plugin-guard.sh    # Guard against unauthorized Discord plugin use
+    kill-project-session.sh    # Session terminator (all runtimes)
+    list-project-sessions.sh   # Session lister (all runtimes)
     restart-agent.sh           # Self-restart helper
     health-check.sh            # Cron health monitor
     heartbeat.sh               # Periodic heartbeat checks
@@ -310,54 +428,72 @@ Two Claude Code hooks power the system:
     slack-bridge.sh            # Slack bridge helper
     slack-bridge-instructions.md
     zoom-auth.sh               # Zoom OAuth flow
-    zoom-token.sh              # Zoom token auto-refresh
     zoom-setup-instructions.md # Zoom MCP server setup
     outlook-setup-instructions.md  # Outlook MCP setup
+    memory-wake-inject.sh      # Inject memory context on session wake
     memory-consolidate.sh      # Memory consolidation cron wrapper
+    count-project-tokens.py    # Token usage tracker for status line
+    council-research.sh        # Multi-LLM parallel research orchestrator
+    codex-run.sh               # Codex CLI wrapper with Discord output
+    compact-session.sh         # Force-compact a session's context
+    audit-log.sh               # Append to structured audit log
+    stop-cleanup-orphans.sh    # Clean up orphaned tmux sessions
+    task-create.sh             # Create task in PostgreSQL task board
+    task-update.sh             # Update task status
+    task-list.sh               # List/filter tasks
   hooks/
-    post-to-discord.sh         # Stop hook (auto-post to Discord)
-    notify-agent-done.sh       # macOS notification hook
-    session-memory.sh          # PostCompact hook (logs compaction events)
+    post-to-discord.sh         # Stop hook -- auto-post to Discord
+    memory-on-stop.sh          # Stop hook -- extract session memory
+    memory-on-compact.sh       # PostCompact hook -- extract memory on compaction
+    context-report-on-stop.sh  # Stop hook -- context continuity report
+    stop-cleanup-orphans.sh    # Stop hook -- orphan session cleanup
+    notify-agent-done.sh       # Notification hook -- macOS alerts
+  db/
+    init.sql                   # Database schema (sessions, memory, tasks)
+    init-workstation.sql       # Workstation-specific init
+    consolidate.sh             # Memory consolidation from DB
+    db-migrate.sh              # Run pending migrations
+    migrate-from-lancedb.sh    # Migration from LanceDB to PostgreSQL
+    migrations/
+      001_create_tasks.sql     # Task board schema
   dashboard/
     server.js                  # Express dashboard on port 7777
     package.json
   channels/
     discord/
-      .env                     # Bot token
-      channel-map.json         # Channel-to-project mapping
-      access.json              # Access control
+      .env                     # Bot token (gitignored)
+      channel-map.json         # Channel-to-project mapping (gitignored)
+      access.json              # Access control (gitignored)
     slack/
-      config.json              # Slack bridge config
+      config.json              # Slack bridge config (gitignored)
     zoom/
-      config.json              # Zoom OAuth config
-      token.json               # Zoom access/refresh tokens (auto-managed)
+      config.json              # Zoom OAuth config (gitignored)
   mcp-servers/
-    memory-server/             # Semantic memory with LanceDB + local embeddings
-      dist/index.js            # MCP server binary
-      dist/consolidate.js      # Consolidation script
-  memory-index/                # LanceDB vector data (auto-created)
-  logs/
-    health-check.log
-    heartbeat.log
-    morning-briefing.log
-    git-check.log
-    disk-check.log
-    memory-server.log
-    memory-consolidation.log
-    launchd-agent.log
-~/Library/LaunchAgents/
-  com.claude.agent.plist       # Auto-start on login
-~/HEARTBEAT.md                 # Heartbeat checklist (customizable)
+    memory-server/             # Semantic memory MCP server
+    slack-mcp/                 # Slack user MCP server
+    zoom-transcript-mcp/       # Zoom transcript MCP server
+  mcp-services/
+    com.mcp.memory.plist       # LaunchAgent for memory MCP
+    com.mcp.slack-user.plist   # LaunchAgent for Slack MCP
+    com.mcp.zoom-transcripts.plist
+    com.mcp.outlook-mcp.plist
+    com.mcp.hass-mcp.plist
+    com.mcp.google-calendar.plist
+    com.mcp.ssh-manager.plist
+    install-mcp-services.sh    # Install all LaunchAgents
+    uninstall-mcp-services.sh  # Remove all LaunchAgents
+  examples/
+    CLAUDE.md.example          # Template for workspace CLAUDE.md
+    HEARTBEAT.md.example       # Template for heartbeat checks
+    settings.json              # Reference Claude Code settings
+    standard-mcp.json          # Reference MCP server config
+    discord-session-instructions.md  # How project sessions use Discord
+    codex-session-instructions.md    # Instructions for Codex runtime
+    gemini-session-instructions.md   # Instructions for Gemini runtime
+  launchd/
+    com.claude.agent.plist     # Auto-start on login
+  jarvis-voice/                # Voice control interface (experimental)
 ```
-
-## CLAUDE.md Integration
-
-For the hub agent to know how to route messages, add routing instructions to your workspace's `CLAUDE.md`. See `examples/CLAUDE.md.example` for a template that includes:
-- Discord message routing rules
-- Project session dispatching
-- Hub command handling (including scheduler and Slack bridge)
-- SecondBrain integration
-- Context management guidelines
 
 ## Cron Jobs
 
@@ -375,6 +511,8 @@ For the hub agent to know how to route messages, add routing instructions to you
 |----------|---------|---------|
 | `CLAUDE_AGENT_WORKSPACE` | Default workspace directory | `$HOME/Documents` |
 | `DISCORD_HUB_CHANNEL_ID` | Hub channel for heartbeat alerts | (set in discord-notify.sh) |
+| `DISCORD_CHANNEL_ID` | Current channel (set per-session by dispatch) | -- |
+| `DISCORD_MESSAGE_ID` | Current message being processed | -- |
 | `HEARTBEAT_FILE` | Path to HEARTBEAT.md | `$HOME/HEARTBEAT.md` |
 | `SECOND_BRAIN_DIR` | Path to SecondBrain vault | `$HOME/SecondBrain` |
 
@@ -383,6 +521,8 @@ For the hub agent to know how to route messages, add routing instructions to you
 - The bot token is stored in `~/.claude/channels/discord/.env` (gitignored)
 - Zoom and Outlook credentials are in their respective config files (gitignored)
 - Access is restricted via `access.json` allowlist -- only your Discord user ID can send commands
+- `constitution.md` enforces immutable security rules across all sessions
+- `discord-plugin-guard.sh` prevents unauthorized use of the Discord plugin from project sessions
 - Claude Code runs with `--dangerously-skip-permissions` for autonomous operation -- ensure your machine is secured
 - All channels are created as private by default
 
@@ -401,6 +541,8 @@ For the hub agent to know how to route messages, add routing instructions to you
 **Heartbeat not running**: Check `~/.claude/logs/heartbeat.log`. Ensure `HEARTBEAT_FILE` points to an existing file.
 
 **Zoom auth failing**: Run `bash ~/.claude/bin/zoom-auth.sh` manually and check that your config.json has the correct client_id and redirect_uri.
+
+**Database not running**: Run `docker compose -f docker-compose.yml up -d` from the repo root. Check with `docker ps | grep postgres`.
 
 ## License
 

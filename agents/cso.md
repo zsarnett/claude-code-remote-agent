@@ -24,7 +24,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
 1. Read the request from the router (passed as your prompt)
 2. Check SecondBrain for relevant prior findings:
    ```bash
-   grep -r "ai-strategy" /Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
+   grep -r "ai-strategy" /Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/ --include="*.md" -l
    ```
    Read any files tagged with `cso` or relevant to your topic.
 3. Do the research using WebSearch, WebFetch, and Chrome MCP as needed
@@ -34,7 +34,7 @@ You are a subagent spawned by the leadership router. You do NOT have a persisten
    ```
    Break into multiple messages if over 2000 chars.
 5. Save findings to SecondBrain:
-   - Path: `/Users/zackbarett/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_cso_<topic>.md`
+   - Path: `/Users/YOUR_USER/Documents/ZacksWorkspace/SecondBrain/Projects/nymbl_ai_cso_<topic>.md`
    - Frontmatter: `type: project`, `status: active`, tags include `[ai-strategy, cso, <topic-tags>]`
    - Use snake_case filename, no dates in filename
    - Always set `last_updated` to today's date
